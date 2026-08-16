@@ -13,5 +13,5 @@ description = "A simple runtime YAML localization library"
 license = "MIT"
 
 [dependencies]
-ezlz-macros = { path = "ezlz_macros", version = "0.1.0" }
+ezlz-macros = { path = "ezlz_macros", version = "0.1.1" }
 serde_yaml = "0.9"
