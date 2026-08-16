@@ -1,138 +1,154 @@
 use proc_macro::TokenStream;
-use proc_macro2::Span;
 use quote::quote;
 use syn::{
     Expr, Ident, Result, Token,
     parse::{Parse, ParseStream},
     parse_macro_input,
 };
-
-#[proc_macro]
-pub fn t(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as Translation);
-
-    let locale = input.locale;
-    let key = input.key.to_string();
-
-    let args = input.args.into_iter().map(|arg| {
-        let name = arg.name;
-        let value = arg.value;
-
-        quote! {
-          (#name, &#value as &dyn ::std::fmt::Display)
-        }
-    });
-
-    let crate_name = proc_macro_crate::crate_name("ezlz").unwrap();
-
-    let crate_ident = match crate_name {
-        proc_macro_crate::FoundCrate::Itself => quote!(crate),
-        proc_macro_crate::FoundCrate::Name(name) => {
-            let ident = syn::Ident::new(&name, Span::call_site());
-            quote!(::#ident)
-        }
-    };
-
-    quote! {
-      #crate_ident::__get(
-        #locale,
-        #key,
-        &[
-        #(
-          #args
-        ),*
-      ],
-      )
-    }
-    .into()
-}
+extern crate self as ezlz;
 
 struct Translation {
     locale: Expr,
-    key: TranslationKey,
-    args: Vec<Placeholder>,
+    key: String,
+    args: Vec<(String, Expr)>,
 }
 
 impl Parse for Translation {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let locale: Expr = input.parse()?;
 
         input.parse::<Token![,]>()?;
 
-        let key: TranslationKey = input.parse()?;
+        let mut key = String::new();
+
+        loop {
+            let ident: Ident = input.parse()?;
+
+            if !key.is_empty() {
+                key.push('.');
+            }
+
+            key.push_str(&ident.to_string());
+
+            if !input.peek(Token![.]) {
+                break;
+            }
+
+            input.parse::<Token![.]>()?;
+        }
 
         let mut args = Vec::new();
 
-        while !input.is_empty() {
+        while input.peek(Token![,]) {
             input.parse::<Token![,]>()?;
 
-            args.push(input.parse()?);
+            let expr: Expr = input.parse()?;
+
+            match &expr {
+                /*
+                 * Explicit:
+                 *
+                 * name = expression
+                 *
+                 * n = 42
+                 */
+                Expr::Assign(assign) => {
+                    let Expr::Path(path) = &*assign.left else {
+                        return Err(syn::Error::new_spanned(
+                            &assign.left,
+                            "expected a placeholder identifier",
+                        ));
+                    };
+
+                    let Some(ident) = path.path.get_ident() else {
+                        return Err(syn::Error::new_spanned(
+                            &assign.left,
+                            "expected a placeholder identifier",
+                        ));
+                    };
+
+                    args.push((ident.to_string(), (*assign.right).clone()));
+                }
+
+                /*
+                 * Bare identifier:
+                 *
+                 * name
+                 *
+                 * becomes:
+                 *
+                 * ("name", __display(&name))
+                 */
+                Expr::Path(path) => {
+                    let Some(ident) = path.path.get_ident() else {
+                        return Err(syn::Error::new_spanned(
+                            &expr,
+                            "expected a placeholder identifier or `name = expression`",
+                        ));
+                    };
+
+                    args.push((ident.to_string(), expr));
+                }
+
+                /*
+                 * Numeric/literal expressions without a name
+                 * are deliberately rejected.
+                 *
+                 * The intended syntax is:
+                 *
+                 * n = 42
+                 *
+                 * rather than:
+                 *
+                 * 42
+                 */
+                _ => {
+                    return Err(syn::Error::new_spanned(
+                        &expr,
+                        "expected a placeholder identifier or `name = expression`",
+                    ));
+                }
+            }
         }
 
         Ok(Self { locale, key, args })
     }
 }
 
-struct TranslationKey(Vec<Ident>);
+#[proc_macro]
+pub fn t(input: TokenStream) -> TokenStream {
+    let Translation { locale, key, args } = parse_macro_input!(input as Translation);
 
-impl Parse for TranslationKey {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut segments = Vec::new();
-
-        segments.push(input.parse::<Ident>()?);
-
-        while input.peek(Token![.]) {
-            input.parse::<Token![.]>()?;
-            segments.push(input.parse::<Ident>()?);
-        }
-
-        Ok(Self(segments))
-    }
-}
-
-impl TranslationKey {
-    fn to_string(&self) -> String {
-        self.0
-            .iter()
-            .map(Ident::to_string)
-            .collect::<Vec<_>>()
-            .join(".")
-    }
-}
-
-struct Placeholder {
-    name: syn::LitStr,
-    value: Expr,
-}
-
-impl Parse for Placeholder {
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
-        if input.peek(Ident) {
-            let ident: Ident = input.parse()?;
-
-            if input.peek(Token![=]) {
-                input.parse::<Token![=]>()?;
-
-                let value: Expr = input.parse()?;
-
-                return Ok(Self {
-                    name: syn::LitStr::new(&ident.to_string(), ident.span()),
-                    value,
-                });
+    let arguments = args.iter().map(|(name, expr)| {
+        if name == "n" {
+            quote! {
+                (
+                    #name,
+                    ::ezlz::__number(
+                        &(#expr)
+                    )
+                )
             }
-
-            let value = Expr::Path(syn::ExprPath {
-                attrs: Vec::new(),
-                qself: None,
-                path: ident.clone().into(),
-            });
-
-            return Ok(Self {
-                name: syn::LitStr::new(&ident.to_string(), ident.span()),
-                value,
-            });
+        } else {
+            quote! {
+                (
+                    #name,
+                    ::ezlz::__display(
+                        &(#expr)
+                    )
+                )
+            }
         }
+    });
 
-        Err(input.error("expected a placeholder identifier or `name = expression`"))
+    quote! {
+        ::ezlz::__get(
+            &#locale,
+            #key,
+            &[
+                #(#arguments),*
+            ],
+        )
     }
+    .into()
 }

@@ -5,13 +5,20 @@ members = [
 ]
 resolver = "2"
 
+[dev-dependencies]
+criterion = "0.7"
+
+[[bench]]
+name = "translation"
+harness = false
+
 [package]
 name = "ezlz"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 description = "A simple runtime YAML localization library"
 license = "MIT"
 
 [dependencies]
-ezlz-macros = { path = "ezlz_macros", version = "0.1.1" }
+ezlz-macros = { path = "ezlz_macros", version = "0.2.0" }
 serde_yaml = "0.9"
