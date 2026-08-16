@@ -1,0 +1,10 @@
+# tests/locales/de.yml
+
+messages:
+  hello: "Hallo Welt!"
+  greet: "Hallo, %{name}!"
+
+nested:
+  deeply:
+    nested:
+      value: "Tiefer Wert"

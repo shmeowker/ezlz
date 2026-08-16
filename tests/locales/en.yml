@@ -1,0 +1,14 @@
+# tests/locales/en.yml
+
+messages:
+  hello: "Hello, world!"
+  greet: "Hello, %{name}!"
+  count: "%{name} has %{count} messages."
+
+errors:
+  not_found: "Not found"
+
+nested:
+  deeply:
+    nested:
+      value: "Deep value"

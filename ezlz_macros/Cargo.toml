@@ -1,0 +1,15 @@
+[package]
+name = "ezlz-macros"
+version = "0.1.0"
+edition = "2024"
+description = "Procedural macros for ezlz"
+license = "MIT"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+proc-macro-crate = "3"
