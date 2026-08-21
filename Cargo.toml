@@ -16,7 +16,7 @@ harness = false
 name = "ezlz"
 version = "1.0.0"
 edition = "2024"
-description = "A compact and fast localization library with universal language-agnostic procedural pluralization."
+description = "A compact and fast localization engine with language-agnostic procedural pluralization."
 license = "MIT"
 
 [dependencies]
