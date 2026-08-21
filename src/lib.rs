@@ -1,20 +1,25 @@
+use ahash::AHashMap;
+use serde_yaml::{Value, from_str};
 use std::{
-    collections::HashMap,
-    fmt, fs,
+    error::Error as StdError,
+    fmt::{Display, Formatter, Result as FmtResult, Write},
+    fs,
     path::{Path, PathBuf},
     sync::OnceLock,
 };
+mod plural;
 
 pub use ezlz_macros::t;
 
 /// Global localization store.
 ///
 /// `init()` populates this exactly once.
-static TRANSLATIONS: OnceLock<Translations> = OnceLock::new();
+static TRANSLATIONS: OnceLock<Templates> = OnceLock::new();
 
-struct Translations {
-    fallback: String,
-    locales: HashMap<String, HashMap<String, Translation>>,
+#[derive(Debug)]
+struct Templates {
+    fallback: Box<str>,
+    locales: AHashMap<Box<str>, AHashMap<Box<str>, Template>>,
 }
 
 #[derive(Debug)]
@@ -35,29 +40,35 @@ pub enum Error {
     },
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Io { path, source } => {
-                write!(f, "failed to read {}: {source}", path.display())
+                write!(f, "Failed to read {}: {source}", path.to_string_lossy())
             }
 
             Self::ParseYaml { path, source } => {
-                write!(f, "failed to parse {}: {source}", path.display())
+                write!(
+                    f,
+                    "Failed to parse {}: {}",
+                    path.to_string_lossy(),
+                    source.to_string()
+                )
             }
 
             Self::InvalidYaml { path, message } => {
-                write!(f, "invalid YAML in {}: {message}", path.display())
+                write!(f, "Invalid YAML in {}: {message}.", path.to_string_lossy())
             }
         }
     }
 }
 
-impl std::error::Error for Error {}
+impl StdError for Error {}
 
-/// Initialize ezlz from a localization directory.
+/// Initialize `ezlz` from a localization directory, using `fallback`
+/// locale if some translation is not present in provided language.
 ///
-/// Each `.yml` file represents a locale:
+/// Each `.yml`/`.yaml` file represents a locale.
 ///
 /// ```text
 /// locales/
@@ -66,25 +77,37 @@ impl std::error::Error for Error {}
 /// └── ru.yml
 /// ```
 ///
-/// Nested YAML mappings become dotted translation keys:
-///
 /// ```yaml
+/// # locales/en.yml
 /// messages:
 ///   hello: "Hello"
-///   greet: "Hello, %{name}!"
+///   greet: "Hello, {name}!"
+/// ui:
+///   plural: "You have {i|=1: item| items}"
 /// ```
 ///
-/// becomes:
+/// YAML mappings become dotted translation keys.
+/// These can be then used in the proc macro:
+/// ```rust ignore
+/// use ezlz::t;
+/// ezlz::init("en", "locales").unwrap();
 ///
-/// ```text
-/// messages.hello
-/// messages.greet
+/// fn get_lang() -> String {
+///     "ru".to_string()
+/// }
+///
+/// t!("en", messages.hello);
+/// t!("en_GB", messages.greet, name = "Anna");
+/// // If the variable name matches placeholder name,
+/// // using explicit placeholder names is unneccesary:
+/// let i: u8 = 7;
+/// t!(get_lang(), ui.plural, i);
 /// ```
-pub fn init(fallback: impl Into<String>, directory: impl AsRef<Path>) -> Result<(), Error> {
+pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
     let fallback = fallback.into();
     let directory = directory.as_ref();
 
-    let mut locales = HashMap::new();
+    let mut locales = AHashMap::new();
 
     let entries = fs::read_dir(directory).map_err(|source| Error::Io {
         path: directory.to_path_buf(),
@@ -107,7 +130,7 @@ pub fn init(fallback: impl Into<String>, directory: impl AsRef<Path>) -> Result<
             continue;
         };
 
-        if extension != "yml" {
+        if extension != "yml" && extension != "yaml" {
             continue;
         }
 
@@ -120,44 +143,52 @@ pub fn init(fallback: impl Into<String>, directory: impl AsRef<Path>) -> Result<
             source,
         })?;
 
-        let yaml: serde_yaml::Value =
-            serde_yaml::from_str(&source).map_err(|source| Error::ParseYaml {
-                path: path.clone(),
-                source,
-            })?;
+        let yaml: Value = from_str(&source).map_err(|source| Error::ParseYaml {
+            path: path.clone(),
+            source,
+        })?;
 
-        let mut translations = HashMap::new();
+        let mut translations = AHashMap::<Box<str>, Template>::new();
 
         flatten_yaml(&path, &yaml, String::new(), &mut translations)?;
 
-        locales.insert(locale.to_owned(), translations);
+        locales.insert(Box::from(locale), translations);
     }
 
     TRANSLATIONS
-        .set(Translations { fallback, locales })
+        .set(Templates { fallback, locales })
         .map_err(|_| Error::InvalidYaml {
             path: directory.to_path_buf(),
-            message: "ezlz::init() was called more than once".to_owned(),
+            message: "ezlz::init() can't called more than once.".to_owned(),
         })?;
+
+    if TRANSLATIONS
+        .get()
+        .map(|t| t.locales.get(&t.fallback))
+        .unwrap()
+        .is_none()
+    {
+        panic!("Fallback locale not found.");
+    }
 
     Ok(())
 }
 
 /// Flatten YAML mappings into dotted translation keys and compile
-/// each translation at initialization time.
+/// each translation into AHashMap.
 fn flatten_yaml(
     path: &Path,
-    value: &serde_yaml::Value,
+    value: &Value,
     prefix: String,
-    output: &mut HashMap<String, Translation>,
+    output: &mut AHashMap<Box<str>, Template>,
 ) -> Result<(), Error> {
     match value {
-        serde_yaml::Value::Mapping(mapping) => {
+        Value::Mapping(mapping) => {
             for (key, value) in mapping {
                 let Some(key) = key.as_str() else {
                     return Err(Error::InvalidYaml {
                         path: path.to_path_buf(),
-                        message: "translation keys must be strings".to_owned(),
+                        message: "Template keys must be strings".to_owned(),
                     });
                 };
 
@@ -171,16 +202,16 @@ fn flatten_yaml(
             }
         }
 
-        serde_yaml::Value::String(value) => {
-            let translation = Translation::compile(value);
+        Value::String(value) => {
+            let translation = Template::compile(value);
 
-            output.insert(prefix, translation);
+            output.insert(prefix.into_boxed_str(), translation);
         }
 
         _ => {
             return Err(Error::InvalidYaml {
                 path: path.to_path_buf(),
-                message: format!("translation value must be a string, got {value:?}"),
+                message: format!("Template value must be a string, got {value:?}"),
             });
         }
     }
@@ -188,36 +219,26 @@ fn flatten_yaml(
     Ok(())
 }
 
-// -----------------------------------------------------------------------------
-// Compiled translations
-// -----------------------------------------------------------------------------
-
-struct Translation {
-    parts: Vec<Part>,
-}
-
+#[derive(Debug)]
 enum Part {
-    Text(String),
+    Text(Box<str>),
 
-    Argument {
-        name: String,
+    Variable {
+        name: Box<str>,
     },
 
     Plural {
-        name: String,
-        prepend: bool,
-        rules: Vec<PluralRule>,
+        name: Box<str>,
+        rules: plural::Ruleset,
     },
 }
 
-struct PluralRule {
-    threshold: usize,
-    thresholded: bool,
-    replace: bool,
-    value: String,
+#[derive(Debug)]
+struct Template {
+    parts: Box<[Part]>,
 }
 
-impl Translation {
+impl Template {
     fn compile(template: &str) -> Self {
         let mut parts = Vec::new();
         let mut text_start = 0;
@@ -226,75 +247,63 @@ impl Translation {
         let mut i = 0;
 
         while i < bytes.len() {
-            // `%{name}`
-            if bytes[i] == b'%' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
-                if let Some(end) = find_closing_brace(template, i + 2) {
-                    if text_start < i {
-                        parts.push(Part::Text(template[text_start..i].to_owned()));
-                    }
-
-                    let name = &template[i + 2..end];
-
-                    parts.push(Part::Argument {
-                        name: name.to_owned(),
-                    });
-
-                    i = end + 1;
-                    text_start = i;
-                    continue;
-                }
+            if bytes[i] != b'{' {
+                i += 1;
+                continue;
             }
 
-            // `{...}`
-            if bytes[i] == b'{' {
-                if let Some(end) = find_closing_brace(template, i + 1) {
-                    let content = &template[i + 1..end];
+            // Find the closing `}`.
+            let Some(relative_end) = template[i + 1..].find('}') else {
+                i += 1;
+                continue;
+            };
 
-                    // A plural expression contains `|`.
-                    if let Some(pipe) = content.find('|') {
-                        let name_part = &content[..pipe];
+            let end = i + 1 + relative_end;
 
-                        let prepend = name_part.starts_with('+');
-
-                        let name = if prepend { &name_part[1..] } else { name_part };
-
-                        if !name.is_empty() {
-                            if text_start < i {
-                                parts.push(Part::Text(template[text_start..i].to_owned()));
-                            }
-
-                            let rules_text = &content[pipe + 1..];
-
-                            let rules = compile_plural_rules(rules_text);
-
-                            parts.push(Part::Plural {
-                                name: name.to_owned(),
-                                prepend,
-                                rules,
-                            });
-
-                            i = end + 1;
-                            text_start = i;
-                            continue;
-                        }
-                    }
-                }
+            // Text preceding the placeholder.
+            if text_start < i {
+                parts.push(Part::Text(template[text_start..i].into()));
             }
 
-            i += 1;
+            let placeholder = &template[i + 1..end];
+
+            // Ordinary `{name}` placeholder.
+            if is_identifier(placeholder) {
+                parts.push(Part::Variable {
+                    name: placeholder.into(),
+                });
+
+                i = end + 1;
+                text_start = i;
+                continue;
+            }
+
+            if let Some((name, rules)) = plural::compile(placeholder) {
+                parts.push(Part::Plural { name, rules });
+
+                i = end + 1;
+                text_start = i;
+                continue;
+            }
+
+            parts.push(Part::Text(template[i..=end].into()));
+
+            i = end + 1;
+            text_start = i;
         }
 
+        // Remaining text.
         if text_start < template.len() {
-            parts.push(Part::Text(template[text_start..].to_owned()));
+            parts.push(Part::Text(template[text_start..].into()));
         }
 
-        Self { parts }
+        Self {
+            parts: parts.into_boxed_slice(),
+        }
     }
 
     fn render(&self, args: &[(&str, Arg<'_>)]) -> String {
-        let capacity = self.estimated_capacity(args);
-
-        let mut output = String::with_capacity(capacity);
+        let mut output = String::new();
 
         for part in &self.parts {
             match part {
@@ -302,19 +311,15 @@ impl Translation {
                     output.push_str(text);
                 }
 
-                Part::Argument { name } => {
+                Part::Variable { name } => {
                     if let Some(arg) = find_arg(args, name) {
                         arg.write_to(&mut output);
                     }
                 }
 
-                Part::Plural {
-                    name,
-                    prepend,
-                    rules,
-                } => {
+                Part::Plural { name, rules } => {
                     if let Some(arg) = find_arg(args, name) {
-                        render_plural(&mut output, arg, *prepend, rules);
+                        rules.render(&mut output, arg);
                     }
                 }
             }
@@ -322,199 +327,101 @@ impl Translation {
 
         output
     }
-
-    fn estimated_capacity(&self, args: &[(&str, Arg<'_>)]) -> usize {
-        let text_size = self
-            .parts
-            .iter()
-            .map(|part| match part {
-                Part::Text(text) => text.len(),
-                _ => 0,
-            })
-            .sum::<usize>();
-
-        let arg_count = self
-            .parts
-            .iter()
-            .filter(|part| matches!(part, Part::Argument { .. } | Part::Plural { .. }))
-            .count();
-
-        // Avoid a zero-capacity String for translations that contain
-        // only arguments.
-        text_size + arg_count * 8 + args.len() * 4
-    }
 }
 
-fn find_closing_brace(template: &str, start: usize) -> Option<usize> {
-    template[start..].find('}').map(|offset| start + offset)
+#[inline]
+fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> {
+    args.iter()
+        .find(|(arg_name, _)| *arg_name == name)
+        .map(|(_, value)| value)
 }
 
-// -----------------------------------------------------------------------------
-// Plural compilation
-// -----------------------------------------------------------------------------
-
-fn compile_plural_rules(rules: &str) -> Vec<PluralRule> {
-    rules
-        .split('|')
-        .enumerate()
-        .map(|(implicit_index, rule)| compile_plural_rule(implicit_index, rule))
-        .collect()
+fn is_identifier(s: &str) -> bool {
+    let mut chars = s.chars();
+    chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
-fn compile_plural_rule(implicit_index: usize, rule: &str) -> PluralRule {
-    if let Some(rest) = rule.strip_prefix('+') {
-        let replace = rest.starts_with('=');
-
-        let value = rest.strip_prefix('=').unwrap_or(rest);
-
-        return PluralRule {
-            threshold: implicit_index,
-            thresholded: true,
-            replace,
-            value: value.to_owned(),
-        };
-    }
-
-    if let Some(plus) = rule.find('+') {
-        if plus > 0 {
-            if let Ok(threshold) = rule[..plus].parse::<usize>() {
-                let rest = &rule[plus + 1..];
-
-                let replace = rest.starts_with('=');
-
-                let value = rest.strip_prefix('=').unwrap_or(rest);
-
-                return PluralRule {
-                    threshold,
-                    thresholded: true,
-                    replace,
-                    value: value.to_owned(),
-                };
-            }
-        }
-    }
-
-    if let Some(value) = rule.strip_prefix('=') {
-        return PluralRule {
-            threshold: implicit_index,
-            thresholded: false,
-            replace: true,
-            value: value.to_owned(),
-        };
-    }
-
-    PluralRule {
-        threshold: implicit_index,
-        thresholded: false,
-        replace: false,
-        value: rule.to_owned(),
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Runtime arguments
-// -----------------------------------------------------------------------------
-
-pub enum Arg<'a> {
-    Display(&'a dyn fmt::Display),
-    Number(Number),
-}
-
-pub struct Number {
-    value: f64,
-    text: NumberText,
-}
-
-enum NumberText {
-    Integer(String),
-    Float(String),
-}
+#[derive(Debug)]
+pub struct Number(f64, bool);
 
 impl Number {
-    fn write_to(&self, output: &mut String) {
-        match &self.text {
-            NumberText::Integer(text) | NumberText::Float(text) => {
-                output.push_str(text);
-            }
+    fn new(n: &dyn Display, is_float: bool) -> Self {
+        Self(n.to_string().parse::<f64>().unwrap_or(f64::NAN), is_float)
+    }
+    #[inline]
+    fn abs_trunc(&self) -> u64 {
+        self.0.abs().trunc() as u64
+    }
+    #[inline]
+    fn is_float(&self) -> bool {
+        self.1
+    }
+}
+
+#[allow(clippy::to_string_trait_impl)]
+impl ToString for Number {
+    fn to_string(&self) -> String {
+        if self.1 {
+            let mut buf = zmij::Buffer::new();
+            return buf.format(self.0).to_owned();
         }
-    }
-
-    fn value(&self) -> f64 {
-        self.value
+        unsafe { self.0.to_int_unchecked::<i64>().to_string() }
     }
 }
 
-/// Used by the proc macro for ordinary placeholders.
-#[doc(hidden)]
-pub fn __display<'a, T>(value: &'a T) -> Arg<'a>
-where
-    T: fmt::Display,
-{
-    Arg::Display(value)
-}
-
-/// Used by the proc macro for `n = ...`.
+/// (value, is_float)
 ///
-/// Numeric values are captured without converting them through
-/// `Display` and then parsing them again.
-#[doc(hidden)]
-pub fn __number<'a, T>(value: &'a T) -> Arg<'a>
-where
-    T: NumberArg,
-{
-    value.to_ezlz_number()
+/// `is_float` is only used during plural placeholder
+/// rendering and doesn't matter for any non-numberic value.
+pub struct Arg<'a>(&'a dyn Display, bool);
+
+impl Arg<'_> {
+    fn write_to(&self, output: &mut String) {
+        let _ = write!(output, "{}", self.0);
+    }
+    fn number(&self) -> Number {
+        Number::new(self.0, self.1)
+    }
 }
 
-/// Numeric values supported by `{n|...}` expressions.
-pub trait NumberArg {
-    fn to_ezlz_number<'a>(&'a self) -> Arg<'a>;
+pub trait ToArg<'a> {
+    fn to_arg(self) -> Arg<'a>;
 }
 
-macro_rules! impl_integer_number_arg {
-    ($($ty:ty),* $(,)?) => {
+macro_rules! impl_to_arg {
+    ($float:expr; $($ty:ty),* $(,)?) => {
         $(
-            impl NumberArg for $ty {
-                fn to_ezlz_number<'a>(
-                    &'a self,
-                ) -> Arg<'a> {
-                    Arg::Number(Number {
-                        value: *self as f64,
-                        text: NumberText::Integer(
-                            self.to_string(),
-                        ),
-                    })
+            impl<'a> ToArg<'a> for &'a $ty {
+                #[inline(always)]
+                fn to_arg(self) -> Arg<'a> {
+                    Arg(self, $float)
                 }
             }
         )*
     };
 }
 
-impl_integer_number_arg!(
-    i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize,
+impl_to_arg!(
+    false; u8, u16, u32, u64, usize, i8, i16, i32, i64, isize,
+);
+impl_to_arg!(
+    true; f32, f64, String, &str
 );
 
-impl NumberArg for f32 {
-    fn to_ezlz_number<'a>(&'a self) -> Arg<'a> {
-        Arg::Number(Number {
-            value: *self as f64,
-            text: NumberText::Float(format_number(*self as f64)),
-        })
-    }
+/// Supported types:
+/// u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64, String, &str
+#[doc(hidden)]
+pub fn __arg<'a, T: ?Sized>(value: &'a T) -> Arg<'a>
+where
+    &'a T: ToArg<'a>,
+{
+    <&'a T as ToArg<'a>>::to_arg(value)
 }
 
-impl NumberArg for f64 {
-    fn to_ezlz_number<'a>(&'a self) -> Arg<'a> {
-        Arg::Number(Number {
-            value: *self,
-            text: NumberText::Float(format_number(*self)),
-        })
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Runtime lookup
-// -----------------------------------------------------------------------------
-
+/// Used by the `t!` proc-macro.
+///
+/// Panics if `ezlz` has not been initialized
+/// or if a translation cannot be found.
 #[doc(hidden)]
 pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
     let translations = TRANSLATIONS
@@ -533,121 +440,7 @@ pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
         });
 
     match template {
-        Some(template) => template.render(args),
-        None => key.to_owned(),
-    }
-}
-
-fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> {
-    args.iter()
-        .find(|(arg_name, _)| *arg_name == name)
-        .map(|(_, value)| value)
-}
-
-// -----------------------------------------------------------------------------
-// Rendering
-// -----------------------------------------------------------------------------
-
-impl Arg<'_> {
-    fn write_to(&self, output: &mut String) {
-        match self {
-            Arg::Display(value) => {
-                use std::fmt::Write;
-
-                let _ = write!(output, "{value}");
-            }
-
-            Arg::Number(value) => {
-                value.write_to(output);
-            }
-        }
-    }
-
-    fn number(&self) -> Option<f64> {
-        match self {
-            Arg::Number(number) => Some(number.value()),
-
-            // Kept as a fallback for manually constructed Args.
-            //
-            // The proc macro always uses Arg::Number for `n`, so
-            // normal plural calls do not pay this cost.
-            Arg::Display(value) => value.to_string().parse::<f64>().ok(),
-        }
-    }
-}
-
-fn render_plural(output: &mut String, arg: &Arg<'_>, prepend: bool, rules: &[PluralRule]) {
-    let Some(number) = arg.number() else {
-        arg.write_to(output);
-        return;
-    };
-
-    let rendered_number = match arg {
-        Arg::Number(number) => {
-            let mut s = String::new();
-
-            number.write_to(&mut s);
-
-            s
-        }
-
-        Arg::Display(value) => value.to_string(),
-    };
-
-    let Some(rule) = select_plural_rule(number, rules) else {
-        output.push_str(&rendered_number);
-        return;
-    };
-
-    if rule.replace {
-        if prepend {
-            output.push_str(&rule.value);
-            output.push_str(&rendered_number);
-        } else {
-            output.push_str(&rule.value);
-        }
-
-        return;
-    }
-
-    if prepend {
-        output.push_str(&rule.value);
-        output.push_str(&rendered_number);
-    } else {
-        output.push_str(&rendered_number);
-        output.push_str(&rule.value);
-    }
-}
-
-fn select_plural_rule<'a>(number: f64, rules: &'a [PluralRule]) -> Option<&'a PluralRule> {
-    if number.fract() != 0.0 || number < 0.0 {
-        return None;
-    }
-
-    let index = number as usize;
-
-    // Exact positional rule wins.
-    if let Some(rule) = rules.get(index) {
-        if !rule.thresholded {
-            return Some(rule);
-        }
-    }
-
-    // Otherwise select the highest matching threshold.
-    rules
-        .iter()
-        .filter(|rule| rule.thresholded && rule.threshold <= index)
-        .max_by_key(|rule| rule.threshold)
-}
-
-// -----------------------------------------------------------------------------
-// Formatting
-// -----------------------------------------------------------------------------
-
-fn format_number(number: f64) -> String {
-    if number.fract() == 0.0 {
-        format!("{number:.0}")
-    } else {
-        number.to_string()
+        Some(translation) => translation.render(args),
+        None => panic!("Translation '{key}' not found in locale '{locale}' and fallback locale.",),
     }
 }

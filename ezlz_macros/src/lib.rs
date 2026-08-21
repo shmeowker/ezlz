@@ -77,7 +77,7 @@ impl Parse for Translation {
                  *
                  * becomes:
                  *
-                 * ("name", __display(&name))
+                 * ("name", __arg(&name))
                  */
                 Expr::Path(path) => {
                     let Some(ident) = path.path.get_ident() else {
@@ -91,7 +91,7 @@ impl Parse for Translation {
                 }
 
                 /*
-                 * Numeric/literal expressions without a name
+                 * Expressions without a name
                  * are deliberately rejected.
                  *
                  * The intended syntax is:
@@ -115,29 +115,28 @@ impl Parse for Translation {
     }
 }
 
+/// Usage: `t!(<locale: Into<Box<str>>>, <mapping[.key]...>[, ident: impl ezlz::ToArg | ident = expr: impl ezlz::IntoArg]...)`
+///
+/// Examples:
+/// ```rust ignore
+/// t!("en", menu.login);
+/// t!("en", store.cart.total_price, price);
+/// t!(current_lang(), animals, foxes = count(), cats, dogs = 0);
+/// // Check out tests/locales/test.yml
+/// // for plural placeholder examples
+/// benches = t!("test", test.ru, i = 4);
+/// assert_eq!(benches, "4 стола");
+/// ```
 #[proc_macro]
 pub fn t(input: TokenStream) -> TokenStream {
     let Translation { locale, key, args } = parse_macro_input!(input as Translation);
 
     let arguments = args.iter().map(|(name, expr)| {
-        if name == "n" {
-            quote! {
-                (
-                    #name,
-                    ::ezlz::__number(
-                        &(#expr)
-                    )
-                )
-            }
-        } else {
-            quote! {
-                (
-                    #name,
-                    ::ezlz::__display(
-                        &(#expr)
-                    )
-                )
-            }
+        quote! {
+            (
+                #name,
+                ::ezlz::__arg(&(#expr))
+            )
         }
     });
 
@@ -145,9 +144,7 @@ pub fn t(input: TokenStream) -> TokenStream {
         ::ezlz::__get(
             &#locale,
             #key,
-            &[
-                #(#arguments),*
-            ],
+            &[#(#arguments),*],
         )
     }
     .into()

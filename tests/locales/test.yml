@@ -1,0 +1,17 @@
+test:
+  ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
+  ru: "{i|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"
+  ro: "{i|=0: vulpi|=1: vulpe|#1-19: vulpi| de vulpi}"
+  de: "{i|=1: Fuchs| Füchse}"
+  en: "{i|=1: fox| foxes}"
+  fr: "{i|~0-1: article| articles}"
+  cn: "{i| 件}"
+
+bench:
+  literal: "Lorem ipsum dolor sit amet..."
+  simple: "{x}"
+  simple_x10: "{x}{x}{x}{x}{x}{x}{x}{x}{x}{x}"
+  plural_en: "{x|=1: fox| foxes}"
+  plural_en_x10: "{x|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}"
+  plural_fr: "{x|~0-1: article| articles}"
+  plural_ru: "{x|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"

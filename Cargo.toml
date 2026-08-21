@@ -9,16 +9,18 @@ resolver = "2"
 criterion = "0.7"
 
 [[bench]]
-name = "translation"
+name = "benchmarks"
 harness = false
 
 [package]
 name = "ezlz"
-version = "0.2.0"
+version = "1.0.0"
 edition = "2024"
-description = "A simple runtime YAML localization library"
+description = "A compact and fast YAML localization library with universal language-agnostic pluralization."
 license = "MIT"
 
 [dependencies]
+ahash = "0.8.12"
 ezlz-macros = { path = "ezlz_macros", version = "0.2.0" }
 serde_yaml = "0.9"
+zmij = { version = "1.0.23" }
