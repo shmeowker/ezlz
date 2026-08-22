@@ -14,7 +14,7 @@ harness = false
 
 [package]
 name = "ezlz"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 description = "A compact and fast localization engine with language-agnostic procedural pluralization."
 license = "MIT"
@@ -22,5 +22,6 @@ license = "MIT"
 [dependencies]
 ahash = "0.8.12"
 ezlz-macros = { path = "ezlz_macros", version = "0.2.0" }
+itoa = "1.0.18"
 serde_yaml = "0.9"
 zmij = { version = "1.0.23" }

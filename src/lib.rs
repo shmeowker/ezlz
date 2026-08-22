@@ -1,8 +1,9 @@
+#[doc = include_str!("../README.md")]
 use ahash::AHashMap;
 use serde_yaml::{Value, from_str};
 use std::{
     error::Error as StdError,
-    fmt::{Display, Formatter, Result as FmtResult, Write},
+    fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
     sync::OnceLock,
@@ -48,12 +49,7 @@ impl Display for Error {
             }
 
             Self::ParseYaml { path, source } => {
-                write!(
-                    f,
-                    "Failed to parse {}: {}",
-                    path.to_string_lossy(),
-                    source.to_string()
-                )
+                write!(f, "Failed to parse {}: {}", path.to_string_lossy(), source)
             }
 
             Self::InvalidYaml { path, message } => {
@@ -341,71 +337,137 @@ fn is_identifier(s: &str) -> bool {
     chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
-#[derive(Debug)]
-pub struct Number(f64, bool);
+/// An argument passed to a translation template.
+pub struct Arg<'a> {
+    pub value: ArgValue<'a>,
+    pub kind: u8,
+}
 
-impl Number {
-    fn new(n: &dyn Display, is_float: bool) -> Self {
-        Self(n.to_string().parse::<f64>().unwrap_or(f64::NAN), is_float)
+/// The value stored in an [`Arg`].
+///
+/// Only the field corresponding to `Arg::kind` may be read.
+pub union ArgValue<'a> {
+    pub int: i64,
+    pub uint: u64,
+    pub float: f64,
+    pub string: &'a str,
+}
+
+impl<'a> Arg<'a> {
+    pub const INT: u8 = 0x00;
+    pub const UINT: u8 = 0x01;
+    pub const FLOAT: u8 = 0x02;
+    pub const STRING: u8 = 0x03;
+    #[inline]
+    fn is_numberic(&self) -> bool {
+        self.kind != Self::STRING
     }
     #[inline]
     fn abs_trunc(&self) -> u64 {
-        self.0.abs().trunc() as u64
+        unsafe {
+            match self.kind {
+                Self::INT => self.value.int.unsigned_abs(),
+                Self::UINT => self.value.uint,
+                Self::FLOAT => self.value.float.abs() as u64,
+                _ => unreachable!(),
+            }
+        }
     }
     #[inline]
     fn is_float(&self) -> bool {
-        self.1
+        self.kind == Self::FLOAT
     }
-}
-
-#[allow(clippy::to_string_trait_impl)]
-impl ToString for Number {
-    fn to_string(&self) -> String {
-        if self.1 {
-            let mut buf = zmij::Buffer::new();
-            return buf.format(self.0).to_owned();
+    #[inline]
+    fn write_to(&self, out: &mut String) {
+        unsafe {
+            match self.kind {
+                Self::INT => {
+                    let mut buf = itoa::Buffer::new();
+                    let n = buf.format(self.value.int);
+                    out.push_str(n);
+                }
+                Self::UINT => {
+                    let mut buf = itoa::Buffer::new();
+                    let n = buf.format(self.value.uint);
+                    out.push_str(n);
+                }
+                Self::FLOAT => {
+                    let mut buf = zmij::Buffer::new();
+                    let n = buf.format(self.value.float);
+                    out.push_str(n);
+                }
+                Self::STRING => {
+                    out.push_str(self.value.string);
+                }
+                _ => unreachable!(),
+            }
         }
-        unsafe { self.0.to_int_unchecked::<i64>().to_string() }
     }
 }
 
-/// (value, is_float)
-///
-/// `is_float` is only used during plural placeholder
-/// rendering and doesn't matter for any non-numberic value.
-pub struct Arg<'a>(&'a dyn Display, bool);
-
-impl Arg<'_> {
-    fn write_to(&self, output: &mut String) {
-        let _ = write!(output, "{}", self.0);
-    }
-    fn number(&self) -> Number {
-        Number::new(self.0, self.1)
-    }
-}
-
+/// Convers the type into an [`Arg`].
+/// Must set the `Arg::kind` to one of:
+/// - Arg::INT for signed integers
+/// - Arg::UINT for unsigned integers
+/// - Arg::FLOAT for floating point numbers
+/// - Arg::STRING for strings
+/// And assign the value to a corresponding
+/// field of [`ArgValue`].
 pub trait ToArg<'a> {
     fn to_arg(self) -> Arg<'a>;
 }
 
+impl<'a> ToArg<'a> for &'a &str {
+    #[inline]
+    fn to_arg(self) -> Arg<'a> {
+        Arg {
+            value: ArgValue { string: self },
+            kind: Arg::STRING,
+        }
+    }
+}
+
+impl<'a> ToArg<'a> for &'a String {
+    #[inline]
+    fn to_arg(self) -> Arg<'a> {
+        Arg {
+            value: ArgValue { string: self },
+            kind: Arg::STRING,
+        }
+    }
+}
+
 macro_rules! impl_to_arg {
-    ($float:expr; $($ty:ty),* $(,)?) => {
+    ($($ty:ty => $field:ident, $kind:ident, $cast:ty),* $(,)?) => {
         $(
             impl<'a> ToArg<'a> for &'a $ty {
                 #[inline(always)]
                 fn to_arg(self) -> Arg<'a> {
-                    Arg(self, $float)
+                    Arg {
+                        value: ArgValue { $field: *self as $cast },
+                        kind: Arg::$kind,
+                    }
                 }
             }
         )*
     };
-}
+    }
 
 impl_to_arg!(
-    false; u8, u16, u32, u64, usize, i8, i16, i32, i64, isize,
-);
-impl_to_arg!(
-    true; f32, f64, String, &str
+    i8    => int,   INT, i64,
+    i16   => int,   INT, i64,
+    i32   => int,   INT, i64,
+    i64   => int,   INT, i64,
+    isize => int,   INT, i64,
+
+    u8    => uint,  UINT, u64,
+    u16   => uint,  UINT, u64,
+    u32   => uint,  UINT, u64,
+    u64   => uint,  UINT, u64,
+    usize => uint,  UINT, u64,
+
+    f32   => float, FLOAT, f64,
+    f64   => float, FLOAT, f64,
 );
 
 /// Supported types:

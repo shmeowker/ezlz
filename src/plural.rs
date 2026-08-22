@@ -1,4 +1,4 @@
-use crate::{Arg, Number};
+use crate::Arg;
 
 #[derive(Debug)]
 struct Rule {
@@ -10,7 +10,7 @@ struct Rule {
 }
 
 impl Rule {
-    fn matches(&self, n: &Number) -> bool {
+    fn matches(&self, n: &Arg) -> bool {
         let i = n.abs_trunc();
         let x = match self.op {
             b'.' => return n.is_float(),
@@ -19,9 +19,9 @@ impl Rule {
             b'#' => i % 100,
             _ => return true,
         };
-				if n.is_float() && self.op != b'~' {
-					return false;
-				}
+        if n.is_float() && self.op != b'~' {
+            return false;
+        }
         if self.hi == 0xff {
             self.lo as u64 <= x
         } else {
@@ -37,17 +37,17 @@ pub struct Ruleset {
 
 impl Ruleset {
     #[inline]
-    fn select(&self, n: &Number) -> Option<&Rule> {
+    fn select(&self, n: &Arg) -> Option<&Rule> {
         self.rules.iter().find(|r| r.matches(n))
     }
-  
+
     pub fn render(&self, output: &mut String, arg: &Arg<'_>) {
-        let n = arg.number();
+        if !arg.is_numberic() {
+            panic!("Non-numberic Arg passed to plural placeholder.");
+        }
 
-        let rendered_number = n.to_string();
-
-        let Some(rule) = self.select(&n) else {
-            output.push_str(&rendered_number);
+        let Some(rule) = self.select(arg) else {
+            arg.write_to(&mut *output);
             return;
         };
 
@@ -56,7 +56,7 @@ impl Ruleset {
             return;
         }
 
-        output.push_str(&rendered_number);
+        arg.write_to(&mut *output);
         output.push_str(&rule.text);
     }
 }
