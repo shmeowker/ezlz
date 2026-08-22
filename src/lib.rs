@@ -451,7 +451,7 @@ macro_rules! impl_to_arg {
             }
         )*
     };
-    }
+}
 
 impl_to_arg!(
     i8    => int,   INT, i64,
@@ -470,7 +470,7 @@ impl_to_arg!(
     f64   => float, FLOAT, f64,
 );
 
-/// Supported types:
+/// Types supported «out of the box»:
 /// u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64, String, &str
 #[doc(hidden)]
 pub fn __arg<'a, T: ?Sized>(value: &'a T) -> Arg<'a>

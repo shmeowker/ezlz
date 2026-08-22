@@ -119,7 +119,7 @@ fn plural_languages() {
     ];
     let fr_float = [
         (-0.5, "-0.5 article"),
-        (1.5, "1.5 articles"),
+        (1.5, "1.5 article"),
         (2.0, "2.0 articles"),
     ];
 

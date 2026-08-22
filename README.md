@@ -34,7 +34,6 @@ messages:
 
 
 ```rust ignore
-
 use ezlz::t;
 
 fn main() {
@@ -76,7 +75,7 @@ examples:
 
   # Pluralization examples
   en: "{i|=1: fox| foxes}"
-  fr: "{i|~0: article|=1: article| articles}"
+  fr: "{i|~0-1: article| articles}"
   ro: "{i|=0: vulpi|=1: vulpe|#1-19: vulpi| de vulpi}"
   ru: "{i|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"
   ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
