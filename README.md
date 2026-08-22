@@ -262,17 +262,17 @@ Results:
 
 | Benchmark          |   Average |
 | ------------------ | --------: |
-| `text`             | 84.916 ns |
-| `simple`           | 93.721 ns |
-| `simple<-string`   | 87.550 ns |
-| `simple<-float`    | 112.01 ns |
-| `simple (x10)`     | 259.28 ns |
-| `plural_en`        | 128.79 ns |
-| `plural_en<-float` | 148.97 ns |
-| `plural_en (x10)`  | 175.86 ns |
-| `plural_fr`        | 150.51 ns |
-| `plural_ru`        | 140.79 ns |
-| `plural_ru<-float` | 146.32 ns |
+| `text`             |     84 ns |
+| `simple`           |     93 ns |
+| `simple<-string`   |     87 ns |
+| `simple<-float`    |    112 ns |
+| `simple (x10)`     |    259 ns |
+| `plural_en`        |    128 ns |
+| `plural_en<-float` |    148 ns |
+| `plural_en (x10)`  |    175 ns |
+| `plural_fr`        |    150 ns |
+| `plural_ru`        |    140 ns |
+| `plural_ru<-float` |    146 ns |
 
 ### Running benchmarks
 
