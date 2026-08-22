@@ -6,6 +6,7 @@ test:
   en: "{i|=1: fox| foxes}"
   fr: "{i|~0-1: article| articles}"
   cn: "{i| 件}"
+  replace: "{i|=0:=zero|=1:=one|=2:=two|=3:=three|=4:=four|=5:=five}"
 
 bench:
   literal: "Lorem ipsum dolor sit amet..."

@@ -3,6 +3,14 @@ use ezlz::t;
 #[test]
 fn plural_languages() {
     ezlz::init("test", "tests/locales").unwrap();
+    let replace = [
+        (0, "zero"),
+        (1, "one"),
+        (2, "two"),
+        (3, "three"),
+        (4, "four"),
+        (5, "five"),
+    ];
     let ru = [
         (0, "0 столов"),
         (1, "1 стол"),
@@ -195,5 +203,9 @@ fn plural_languages() {
     }
     for (n, expected) in de_float {
         assert_eq!(t!("test", test.de, i = n), expected);
+    }
+    
+    for (n, expected) in replace {
+        assert_eq!(t!("test", test.replace, i = n), expected);
     }
 }

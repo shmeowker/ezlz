@@ -4,7 +4,8 @@ A compact and fast localization engine for Rust with language-agnostic procedura
 
 ## Quick start
 
-Create a directory for your locales and YAML files for the translations:
+Create a directory for your locales and YAML files for the translations.
+For example:
 
 ```text
 locales/
@@ -12,8 +13,6 @@ locales/
 ├── fr.yml
 └── ru.yml
 ```
-
-For example:
 
 ```yaml
 # locales/en.yml
@@ -208,7 +207,7 @@ or implement CLDR rules. The author of a locale defines the matching rules expli
 ```
 
 Rules are evaluated from left to right. The first matching rule is selected.
-**Float inputs will not match any selectors except `.` and `~`!**
+**Float inputs will not match any selectors except `.` and `~`, and fallback.**
 
 | Selector | Description                           | Syntax              |
 | -------- | ------------------------------------- | ------------------- |
@@ -230,9 +229,9 @@ For `%` and `#`, the rule is applied to the absolute truncated integer value:
 Rules can use `+` for an open-ended range:
 
 ```text
-%5+   modulo 10 is 5 or greater
+%1+   modulo 10 is 1 or greater
 #11+  modulo 100 is 11 or greater
-=9+   absolute integer value is 9 or greater
+=1+   absolute integer value is 1 or greater
 ~1+   truncated absolute integer value is 1 or greater, including float inputs
 ```
 
@@ -243,7 +242,7 @@ e.g. `1.0_f64` **does** match it even though it is integer.
 
 
 You can check out some plural placeholder examples
-for popular languages in the `Quick Strart Templates` section.
+for popular languages in the **Quick Strart ⟩ Templates** section.
 
 ## Benchmarks
 

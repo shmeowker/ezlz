@@ -1,4 +1,4 @@
-#[doc = include_str!("../README.md")]
+#![doc = include_str!("../README.md")]
 use ahash::AHashMap;
 use serde_yaml::{Value, from_str};
 use std::{
@@ -9,7 +9,6 @@ use std::{
     sync::OnceLock,
 };
 mod plural;
-
 pub use ezlz_macros::t;
 
 /// Global localization store.
@@ -406,11 +405,13 @@ impl<'a> Arg<'a> {
 }
 
 /// Convers the type into an [`Arg`].
-/// Must set the `Arg::kind` to one of:
-/// - Arg::INT for signed integers
-/// - Arg::UINT for unsigned integers
-/// - Arg::FLOAT for floating point numbers
-/// - Arg::STRING for strings
+///
+/// Must set the `Arg::kind` to one of
+/// - [`Arg::INT`] for signed integers
+/// - [`Arg::UINT`] for unsigned integers
+/// - [`Arg::FLOAT`] for floating point numbers
+/// - [`Arg::STRING`] for strings
+///
 /// And assign the value to a corresponding
 /// field of [`ArgValue`].
 pub trait ToArg<'a> {
