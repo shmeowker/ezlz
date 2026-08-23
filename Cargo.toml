@@ -20,6 +20,9 @@ description = "A compact and fast localization engine with language-independent 
 license = "MIT"
 repository = "https://github.com/shmeowker/ezlz"
 readme = "README.md"
+keywords = ["i18n", "l10n", "pluralization", "localization"]
+categories = ["localization", "internationalization"]
+
 
 [dependencies]
 ahash = "0.8.12"

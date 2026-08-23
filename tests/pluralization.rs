@@ -204,7 +204,7 @@ fn plural_languages() {
     for (n, expected) in de_float {
         assert_eq!(t!("test", test.de, i = n), expected);
     }
-    
+
     for (n, expected) in replace {
         assert_eq!(t!("test", test.replace, i = n), expected);
     }
