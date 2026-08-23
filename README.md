@@ -8,8 +8,8 @@ When `init` is called, the following sequence is executed:
 1. Ezlz looks up the provided directory for YAML files
    and stores each name as a key into the `Translations` hashmap.
    The file contents are parsed and each YAML key/value pair is processed:
-    1. They keys become hashmap keys for the corresponding template.
-    2. The string values are parsed and each is compiled into a `Template`, that can contain multiple
+    - They keys become hashmap keys for the corresponding template.
+    - The string values are parsed and each is compiled into a `Template`, that can contain multiple
        strings, regular and plural placeholders (which are also parsed and compiled into rulesets).
 2. Sets the provided fallback locale for `Translations`.
 3. Assigns the `Translations` to a static `OnceLock` for future access.
