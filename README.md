@@ -2,6 +2,40 @@
 
 A compact and fast localization engine for Rust with language-agnostic procedural pluralization.
 
+## How it works
+
+When `init` is called, the following sequence is executed:
+1. Ezlz looks up the provided directory for YAML files
+   and stores each name as a key into the `Translations` hashmap.
+   The file contents are parsed and each YAML key/value pair is processed:
+    1. They keys become hashmap keys for the corresponding template.
+    2. The string values are parsed and each is compiled into a `Template`, that can contain multiple
+       strings, regular and plural placeholders (which are also parsed and compiled into rulesets).
+2. Sets the provided fallback locale for `Translations`.
+3. Assigns the `Translations` to a static `OnceLock` for future access.
+4. Checks if the fallback locale exists in the hashmap and panics if it doesn't.
+
+
+When the `t!` proc-macro is called\*:
+1. Get the template hashmap by the provided locale name.
+2. Try getting a `Template` by the hardcoded key from that hashmap, or fallback locale
+   hashmap if not found, and panic if it does not have it either.
+3. Create a new string buffer.
+4. Walk through parts of the `Template`, render each one, writing direclty to the buffer.
+5. Return the buffer.
+
+
+This approach combined with `itoa` and `zmij` for number to string conversion
+makes translation key lookups and placeholder rendering very fast. 
+See the **Benchmarks** section for detailed statistics.
+
+> \* Not actually the proc-macro itself
+> but the code it generated, actually
+> there will be somthing like
+> ```rust ignore
+> ezlz::__get(get_lang(), "bar.baz.foo", &["foo", ezlz::__arg(&foo)]);
+> ```
+
 ## Quick start
 
 Create a directory for your locales and YAML files for the translations.
@@ -80,19 +114,18 @@ examples:
   ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
 ```
 
-YAML mappings become dotted translation keys:
+YAML key mappings become dotted translation keys, for example:
 
 ```yaml
-ui:
-  auth:
-    login: "Log in"
-    register: "Register"
+foo:
+  bar:
+    baz: "corge"
+    qux: "grault"
 ```
-
-which can be referenced as:
-
+can be referenced as:
 ```rust ignore
-t!("en", ui.auth.login);
+t!(lang, foo.bar.baz);
+t!(lang, foo.bar.qux);
 ```
 
 ## Installation
@@ -126,7 +159,7 @@ if the fallback locale doesn't have it**.
 
 ```rust ignore
 // Falls back to 'en'
-t!("cn", messages.hello);
+t!("cn", foo.bar);
 // Panic: Translation 'nonexistant.key' not found for locale 'en' or fallback locale 'en'.
 t!("en", nonexistant.key);
 ```
@@ -141,8 +174,8 @@ t!(<locale: Into<Box<str>>>, <mapping[.key]...>[, ident: ezlz::ToArg | ident = e
 The first argument is any Rust expression which value can be converted to `Box<str>`.
 
 ```rust ignore
-t!("en", messages.hello);
-t!(current_locale(), messages.hello);
+t!("en", foo.bar);
+t!(current_locale(), foo.bar.baz);
 ```
 
 ### Translation key
@@ -161,14 +194,14 @@ which name matches the placeholder name:
 let name = "Anna";
 let count = 5u32;
 
-t!("en", message, name, count);
+t!("en", examples.stats, name, count);
 ```
 
 For an explicit placeholder name or expression:
 
 ```rust ignore
-t!("en", message, name = user_name);
-t!("en", message, count = some_expression());
+t!("en", foo, name = user_name);
+t!("en", foo, count = some_expression());
 ```
 
 Expressions must be named. You can pass multiple different arguments.
@@ -206,8 +239,13 @@ or implement CLDR rules. The author of a locale defines the matching rules expli
 {id|selector:text|selector:text|...|text}
 ```
 
+
+**All inputs are made absolute and have their fractional part truncated
+while matching (this does not affect the rendered number)**
+
+
 Rules are evaluated from left to right. The first matching rule is selected.
-**Float inputs will not match any selectors except `.` and `~`, and fallback.**
+**Float inputs will not match any selectors except `.`, `~`, and fallback.**
 
 | Selector | Description                           | Syntax              |
 | -------- | ------------------------------------- | ------------------- |
@@ -218,21 +256,13 @@ Rules are evaluated from left to right. The first matching rule is selected.
 | `=`      | Absolute integer value/range          | `=0` `=0-1` `=9+`   |
 | *(none)* | Unconditional fallback                | `text`              |
 
-For `%` and `#`, the rule is applied to the absolute truncated integer value:
-
-```text
-21  matches %1
-22  matches %2
-125 matches #25
-```
 
 Rules can use `+` for an open-ended range:
-
 ```text
-%1+   modulo 10 is 1 or greater
-#11+  modulo 100 is 11 or greater
-=1+   absolute integer value is 1 or greater
-~1+   truncated absolute integer value is 1 or greater, including float inputs
+%1+   modulo 10 of input is 1 or greater
+#11+  modulo 100 of input is 11 or greater
+=1+   input is 1 or greater
+~1+   input is 1 or greater, including float inputs
 ```
 
 
@@ -248,29 +278,35 @@ for popular languages in the **Quick Strart ⟩ Templates** section.
 
 Benchmarks were run with Criterion harness using:
 
-* Environment: **Termux 0.118.3**
-* OS: **Android 14**
-* CPU: **MediaTek Dimensity 8050**
+* Environment: Termux 0.118.3
+* OS: Android 14
+* CPU: MediaTek Dimensity 8050
 
-> Differences of roughly 5–10 ns should not be considered significant
-> because the benchmarks were run on an actively used phone without
-> dedicated cooling or background-process isolation.
 
 Results:
 
-| Benchmark          |   Average |
-| ------------------ | --------: |
-| `text`             |     84 ns |
-| `simple`           |     93 ns |
-| `simple<-string`   |     87 ns |
-| `simple<-float`    |    112 ns |
-| `simple (x10)`     |    259 ns |
-| `plural_en`        |    128 ns |
-| `plural_en<-float` |    148 ns |
-| `plural_en (x10)`  |    175 ns |
-| `plural_fr`        |    150 ns |
-| `plural_ru`        |    140 ns |
-| `plural_ru<-float` |    146 ns |
+| Benchmark          | Description             |   Average |
+| ------------------ | ----------------------- | --------: |
+| `text`             | No placeholders         |     87 ns |
+| `simple`           | Single integer          |     93 ns |
+| `simple<-string`   | Single string           |     87 ns |
+| `simple<-float`    | Single float            |    112 ns |
+| `simple (x10)`     | 10 `simple` in one      |    259 ns |
+| `plural_en`        | English integer plural  |    128 ns |
+| `plural_en<-float` | English float plural    |    148 ns |
+| `plural_en (x10)`  | 10 `plural_en` in one   |    163 ns |
+| `plural_fr<-float` | French float plural     |    148 ns |
+| `plural_ru`        | Russian integer plural  |    133 ns |
+| `plural_ru<-float` | Russion float plural    |    146 ns |
+
+100 ns is 10M iterations per second.
+
+> The noise threshold is roughly 5%
+> because the benchmarks were run on an actively used phone without
+> dedicated cooling or background-process isolation. If you have better
+> benchmark results, please open an issue and paste the Criterion output
+> and your system specs so I can update this table for more realistic
+> numbers on desktop systems.
 
 ### Running benchmarks
 

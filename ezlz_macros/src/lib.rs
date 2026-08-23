@@ -1,3 +1,4 @@
+//! Procedural macro [`t!`] for `ezlz` crate.
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
@@ -115,14 +116,14 @@ impl Parse for Translation {
     }
 }
 
-/// Usage: `t!(<locale: Into<Box<str>>>, <mapping[.key]...>[, ident: impl ezlz::ToArg | ident = expr: impl ezlz::IntoArg]...)`
+/// Usage: t!(\<`locale`: Into\<Box\<str>>>, \<yaml\[.key]...>\[, `arg`: ezlz::ToArg |, `arg` = expr(): ezlz::ToArg]...)
 ///
 /// Examples:
 /// ```rust ignore
-/// t!("en", menu.login);
-/// t!("en", store.cart.total_price, price);
-/// t!(current_lang(), animals, foxes = count(), cats, dogs = 0);
-/// // Check out tests/locales/test.yml
+/// t!("ex", foo.corge);
+/// t!(lang, foo.bar.baz, qux);
+/// t!(get_lang(), foo.pets, birds = birds(), cats, dogs = 0);
+/// // Check out tests/locales/test.yml or README.md
 /// // for plural placeholder examples
 /// benches = t!("test", test.ru, i = 4);
 /// assert_eq!(benches, "4 стола");

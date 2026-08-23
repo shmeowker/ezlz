@@ -43,7 +43,7 @@ fn benchmarks(c: &mut Criterion) {
         b.iter(|| black_box(t!("test", bench.plural_en_x10, x)));
     });
 
-    group.bench_function("plural_fr", |b| {
+    group.bench_function("plural_fr<-float", |b| {
         b.iter(|| black_box(t!("test", bench.plural_fr, x = xf)));
     });
 

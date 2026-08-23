@@ -14,10 +14,10 @@ pub use ezlz_macros::t;
 /// Global localization store.
 ///
 /// `init()` populates this exactly once.
-static TRANSLATIONS: OnceLock<Templates> = OnceLock::new();
+static TRANSLATIONS: OnceLock<Translations> = OnceLock::new();
 
 #[derive(Debug)]
-struct Templates {
+struct Translations {
     fallback: Box<str>,
     locales: AHashMap<Box<str>, AHashMap<Box<str>, Template>>,
 }
@@ -60,7 +60,7 @@ impl Display for Error {
 
 impl StdError for Error {}
 
-/// Initialize `ezlz` from a localization directory, using `fallback`
+/// Initialize from a localization `directory`, using `fallback`
 /// locale if some translation is not present in provided language.
 ///
 /// Each `.yml`/`.yaml` file represents a locale.
@@ -82,7 +82,7 @@ impl StdError for Error {}
 /// ```
 ///
 /// YAML mappings become dotted translation keys.
-/// These can be then used in the proc macro:
+/// These can be then used in the proc-macro syntax:
 /// ```rust ignore
 /// use ezlz::t;
 /// ezlz::init("en", "locales").unwrap();
@@ -151,7 +151,7 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
     }
 
     TRANSLATIONS
-        .set(Templates { fallback, locales })
+        .set(Translations { fallback, locales })
         .map_err(|_| Error::InvalidYaml {
             path: directory.to_path_buf(),
             message: "ezlz::init() can't called more than once.".to_owned(),
@@ -336,15 +336,24 @@ fn is_identifier(s: &str) -> bool {
     chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
+/// The kind of type an [`Arg`] is constructed from.
+#[derive(PartialEq)]
+pub enum ArgKind {
+    Int,
+    Uint,
+    Float,
+    String,
+}
+
 /// An argument passed to a translation template.
 pub struct Arg<'a> {
     pub value: ArgValue<'a>,
-    pub kind: u8,
+    pub kind: ArgKind,
 }
 
 /// The value stored in an [`Arg`].
 ///
-/// Only the field corresponding to `Arg::kind` may be read.
+/// Only the field corresponding to [`Arg::kind`] may be read.
 pub union ArgValue<'a> {
     pub int: i64,
     pub uint: u64,
@@ -353,67 +362,58 @@ pub union ArgValue<'a> {
 }
 
 impl<'a> Arg<'a> {
-    pub const INT: u8 = 0x00;
-    pub const UINT: u8 = 0x01;
-    pub const FLOAT: u8 = 0x02;
-    pub const STRING: u8 = 0x03;
     #[inline]
     fn is_numberic(&self) -> bool {
-        self.kind != Self::STRING
+        self.kind != ArgKind::String
     }
     #[inline]
     fn abs_trunc(&self) -> u64 {
         unsafe {
             match self.kind {
-                Self::INT => self.value.int.unsigned_abs(),
-                Self::UINT => self.value.uint,
-                Self::FLOAT => self.value.float.abs() as u64,
-                _ => unreachable!(),
+                ArgKind::Int => self.value.int.unsigned_abs(),
+                ArgKind::Uint => self.value.uint,
+                ArgKind::Float => self.value.float.abs() as u64,
+                _ => std::hint::unreachable_unchecked(),
             }
         }
     }
     #[inline]
     fn is_float(&self) -> bool {
-        self.kind == Self::FLOAT
+        self.kind == ArgKind::Float
     }
     #[inline]
     fn write_to(&self, out: &mut String) {
         unsafe {
             match self.kind {
-                Self::INT => {
+                ArgKind::Int => {
                     let mut buf = itoa::Buffer::new();
                     let n = buf.format(self.value.int);
                     out.push_str(n);
                 }
-                Self::UINT => {
+                ArgKind::Uint => {
                     let mut buf = itoa::Buffer::new();
                     let n = buf.format(self.value.uint);
                     out.push_str(n);
                 }
-                Self::FLOAT => {
+                ArgKind::Float => {
                     let mut buf = zmij::Buffer::new();
                     let n = buf.format(self.value.float);
                     out.push_str(n);
                 }
-                Self::STRING => {
+                ArgKind::String => {
                     out.push_str(self.value.string);
                 }
-                _ => unreachable!(),
             }
         }
     }
 }
 
-/// Convers the type into an [`Arg`].
+/// Converts the type reference to an [`Arg`].
 ///
-/// Must set the `Arg::kind` to one of
-/// - [`Arg::INT`] for signed integers
-/// - [`Arg::UINT`] for unsigned integers
-/// - [`Arg::FLOAT`] for floating point numbers
-/// - [`Arg::STRING`] for strings
-///
-/// And assign the value to a corresponding
-/// field of [`ArgValue`].
+/// Must set the [`Arg::kind`] to the
+/// variant of [`ArgKind`] that matches the
+/// input type group and assign the value
+/// to a corresponding field of [`ArgValue`].
 pub trait ToArg<'a> {
     fn to_arg(self) -> Arg<'a>;
 }
@@ -423,7 +423,7 @@ impl<'a> ToArg<'a> for &'a &str {
     fn to_arg(self) -> Arg<'a> {
         Arg {
             value: ArgValue { string: self },
-            kind: Arg::STRING,
+            kind: ArgKind::String,
         }
     }
 }
@@ -433,7 +433,7 @@ impl<'a> ToArg<'a> for &'a String {
     fn to_arg(self) -> Arg<'a> {
         Arg {
             value: ArgValue { string: self },
-            kind: Arg::STRING,
+            kind: ArgKind::String,
         }
     }
 }
@@ -446,7 +446,7 @@ macro_rules! impl_to_arg {
                 fn to_arg(self) -> Arg<'a> {
                     Arg {
                         value: ArgValue { $field: *self as $cast },
-                        kind: Arg::$kind,
+                        kind: ArgKind::$kind,
                     }
                 }
             }
@@ -455,25 +455,30 @@ macro_rules! impl_to_arg {
 }
 
 impl_to_arg!(
-    i8    => int,   INT, i64,
-    i16   => int,   INT, i64,
-    i32   => int,   INT, i64,
-    i64   => int,   INT, i64,
-    isize => int,   INT, i64,
+    i8    => int,   Int, i64,
+    i16   => int,   Int, i64,
+    i32   => int,   Int, i64,
+    i64   => int,   Int, i64,
+    isize => int,   Int, i64,
 
-    u8    => uint,  UINT, u64,
-    u16   => uint,  UINT, u64,
-    u32   => uint,  UINT, u64,
-    u64   => uint,  UINT, u64,
-    usize => uint,  UINT, u64,
+    u8    => uint,  Uint, u64,
+    u16   => uint,  Uint, u64,
+    u32   => uint,  Uint, u64,
+    u64   => uint,  Uint, u64,
+    usize => uint,  Uint, u64,
 
-    f32   => float, FLOAT, f64,
-    f64   => float, FLOAT, f64,
+    f32   => float, Float, f64,
+    f64   => float, Float, f64,
 );
 
-/// Types supported «out of the box»:
-/// u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64, String, &str
-#[doc(hidden)]
+/// Used by the [`t!`] proc-macro to convert a
+/// compatible input to [`Arg`].
+///
+/// Types that implement [`ToArg`] «out of the box»:
+/// [`u8`], [`u16`], [`u32`], [`u64`], [`usize`],
+/// [`i8`], [`i16`], [`i32`], [`i64`], [`isize`],
+/// [`f32`], [`f64`],
+/// [`String`], &[`str`]
 pub fn __arg<'a, T: ?Sized>(value: &'a T) -> Arg<'a>
 where
     &'a T: ToArg<'a>,
@@ -481,11 +486,11 @@ where
     <&'a T as ToArg<'a>>::to_arg(value)
 }
 
-/// Used by the `t!` proc-macro.
+/// Generated in place of the [`t!`] proc-macro.
 ///
 /// Panics if `ezlz` has not been initialized
-/// or if a translation cannot be found.
-#[doc(hidden)]
+/// or if a translation cannot be found in requested
+/// and fallback locale.
 pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
     let translations = TRANSLATIONS
         .get()
@@ -504,6 +509,6 @@ pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
 
     match template {
         Some(translation) => translation.render(args),
-        None => panic!("Translation '{key}' not found in locale '{locale}' and fallback locale.",),
+        None => panic!("Translation '{key}' not found in locale '{locale}' and fallback locale."),
     }
 }
