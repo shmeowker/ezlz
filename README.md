@@ -247,7 +247,7 @@ Rules are evaluated from left to right. The first matching rule is selected.
 | Selector | Description                           | Syntax              |
 | -------- | ------------------------------------- | ------------------- |
 | `~`      | Numeric value/range, including floats | `~1` `~0-1` `~2+`   |
-| `.`      | Float                                 | `.`                 |
+| `.`      | Float input type                      | `.`                 |
 | `#`      | Modulo 100 value/range                | `#0` `#11-19` `#3+` |
 | `%`      | Modulo 10 value/range                 | `%1` `%2-4` `%5+`   |
 | `=`      | Absolute integer value/range          | `=0` `=0-1` `=9+`   |
@@ -256,11 +256,12 @@ Rules are evaluated from left to right. The first matching rule is selected.
 
 Rules can use `+` for an open-ended range:
 ```text
-%1+   modulo 10 of input is 1 or greater
-#11+  modulo 100 of input is 11 or greater
-=1+   input is 1 or greater
-~1+   input is 1 or greater, including float inputs
+%1+   modulo 10 of N is 1 or greater
+#11+  modulo 100 of N is 11 or greater
+=1+   N is 1 or greater
+~1+   N is 1 or greater, including float inputs
 ```
+> N is `value.abs().trunc() as u64`, as mentioned above.
 
 
 The `.` selector matches arguments that were 
