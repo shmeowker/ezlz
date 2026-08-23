@@ -26,7 +26,7 @@ categories = ["localization", "internationalization"]
 
 [dependencies]
 ahash = "0.8.12"
-ezlz-macros = { path = "ezlz_macros", version = "0.2.0" }
+ezlz-macros = { path = "ezlz_macros", version = "0.2.1" }
 itoa = "1.0.18"
 serde_yaml = "0.9"
 zmij = { version = "1.0.23" }
