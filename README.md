@@ -265,11 +265,11 @@ Rules can use `+` for an open-ended range:
 
 The `.` selector matches arguments that were 
 originally passed as floating-point types,
-e.g. `1.0_f64` **does** match it even though it is integer.
+e.g. `1.0_f64` **does** match it even though its numerical value is integer.
 
 
 You can check out some plural placeholder examples
-for popular languages in the **Quick Strart ⟩ Templates** section.
+for popular languages in the **Quick Start ⟩ Templates** section.
 
 ## Benchmarks
 
