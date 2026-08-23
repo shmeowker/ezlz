@@ -19,17 +19,17 @@ When `init` is called, the following sequence is executed:
 When the `t!` proc-macro is called\*:
 1. Get the template hashmap by the provided locale name.
 2. Try getting a `Template` by the hardcoded key from that hashmap, or fallback locale
-   hashmap if not found, and panic if it does not have it either.
+   hashmap if not found, and panic if that doesn't have it.
 3. Create a new string buffer.
 4. Walk through parts of the `Template`, render each one, writing direclty to the buffer.
 5. Return the buffer.
 
 
-This approach combined with `itoa` and `zmij` for number to string conversion
+This approach combined with `itoa` and `zmij` for number-to-string conversion
 makes translation key lookups and placeholder rendering very fast. 
 See the **Benchmarks** section for detailed statistics.
 
-> \* Not actually the proc-macro itself
+> \* Not the proc-macro itself
 > but the code it generated, actually
 > there will be somthing like
 > ```rust ignore
