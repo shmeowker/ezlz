@@ -1,6 +1,6 @@
 # ezlz
 
-A compact and fast localization engine for Rust with language-agnostic procedural pluralization.
+A compact and fast localization engine for Rust with language-independent procedural pluralization.
 
 ## How it works
 
@@ -233,7 +233,7 @@ Plural placeholders have an identifier and set of rules that is
 compiled at run time. If rule text starts with `=`, the rendered number
 is replaced instead of prepended.
 \
-The syntax is deliberately language-agnostic: ezlz does not infer plural categories
+The syntax is language-independent by design: ezlz does not infer plural categories
 or implement CLDR rules. The author of a locale defines the matching rules explicitly.
 ```text
 {id|selector:text|selector:text|...|text}
