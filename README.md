@@ -227,7 +227,7 @@ Or any custom type that implements `ezlz::ToArg` trait.
 Check out docs.rs or source code for reference.
 
 ### Pluralization
-Plural placeholders have an identifier and set of rules that is 
+Plural placeholders have an identifier and a set of rules, which are
 compiled at runtime. If rule text starts with `=`, the rendered number
 is replaced instead of prepended.
 
