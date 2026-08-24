@@ -9,7 +9,7 @@ really need extensive and complex formatting, consider
 some other crates like [icu](https://crates.io/crates/icu).
 
 ### Features
- - **Fast**: Translations are compiled at runtime and can be rendered millions of times per second.
+ - **Fast**: Translations are compiled at runtime and can be rendered at over 10 million times per second for simple templates.
  - **Simple**: The basic API is just a single function and a macro.
  - **No CLDR pluralization**: Plural rules are compiled from placeholder syntax.
 
