@@ -116,11 +116,11 @@ ezlz = "1"
 ## How it works
 
 ### Initialization
-1. Ezlz looks up the provided directory for YAML files
-   and stores each name as a key into the `Translations` hashmap.
+1. Ezlz searches the provided directory for YAML files
+   and stores each name as a key in the `Translations` hashmap.
    The file contents are parsed and each YAML key/value pair is processed:
     - The keys become hashmap keys for the corresponding template.
-    - The string values are parsed and each is compiled into a `Template`, that can contain multiple
+    - The string values are parsed and each is compiled into a `Template` that can contain multiple
        strings, regular and plural placeholders (which are also parsed and compiled into rulesets).
 2. Sets the provided fallback locale for `Translations`.
 3. Assigns the `Translations` to a static `OnceLock` for future access.
@@ -228,12 +228,12 @@ Check out docs.rs or source code for reference.
 
 ### Pluralization
 Plural placeholders have an identifier and set of rules that is 
-compiled at run time. If rule text starts with `=`, the rendered number
+compiled at runtime. If rule text starts with `=`, the rendered number
 is replaced instead of prepended.
 
 The rule syntax is designed to be capable of implementing
 any pluralization rule for any natural language.
-The author of a locale defines the matching rules explicitly.
+Matching rules are defined explicitly by the locale author.
 ```text
 {id|selector:text|selector:text|...|text}
 ```
@@ -258,7 +258,7 @@ Rules are evaluated from left to right. The first matching rule is selected.
 
 
 Rules can use `+` for an open-ended range.
-N is input.abs().trunc() as u64, as mentioned above.
+Here, N is input.abs().trunc() as u64, as mentioned above.
 ```text
 %1+   modulo 10 of N is 1 or greater
 #11+  modulo 100 of N is 11 or greater
