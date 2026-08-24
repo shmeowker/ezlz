@@ -3,19 +3,19 @@ A compact and fast localization engine for Rust with language-independent proced
 
 ## Overview
 The idea is to support all natural languages while keeping
-the crate small and fast so it can be integrated into web-templates 
+the crate small and fast so it can be integrated into web templates 
 and UIs where full CLDR functionality is not required. If you
 really need extensive and complex formatting, consider
 some other crates like [icu](https://crates.io/crates/icu).
 
 ### Features
- - **Fast**: Translations are compiled at runtime and can be rendered under 100 ns.
+ - **Fast**: Translations are compiled at runtime and can be rendered millions of times per second.
  - **Simple**: The basic API is just a single function and a macro.
  - **No CLDR pluralization**: Plural rules are compiled from placeholder syntax.
 
 
 ## Quick start
-Create a directory for your locales and YAML files for the translations.
+Create a directory for your locales and YAML files containing the translations.
 For example:
 ```text
 locales/
@@ -168,7 +168,7 @@ t!(<locale>, <key>[, arguments...])
 ```
 
 ### Locale
-The `locale` is any Rust expression which value can be converted to `Box<str>`.
+The `locale` can be any Rust expression whose value can be converted to `Box<str>`.
 ```rust ignore
 t!("en", foo.bar);
 t!(current_locale(), foo.bar.baz);
@@ -200,9 +200,8 @@ t!("en", foo, count = some_expression());
 
 
 Expressions must be explicitly named. You can pass multiple different arguments.
-If a template has multiple placeholders with same names,
-they will all take the supplied value, 
-so you shall not repeat the argument per each placeholder.
+If a template has multiple placeholders with same names, they will all take 
+the supplied value, so you don't need to repeat the argument for each placeholder.
 
 
 ## Placeholders
@@ -233,7 +232,7 @@ compiled at run time. If rule text starts with `=`, the rendered number
 is replaced instead of prepended.
 
 The rule syntax is designed to be capable of implementing
-any pluralization rule for any nutural language.
+any pluralization rule for any natural language.
 The author of a locale defines the matching rules explicitly.
 ```text
 {id|selector:text|selector:text|...|text}
@@ -270,7 +269,7 @@ N is input.abs().trunc() as u64, as mentioned above.
 
 The `.` selector matches arguments that were originally passed 
 as floating-point types, e.g. `1.0_f64` **does** match it even 
-though its numerical value is integer.
+though its numerical value is an integer.
 
 
 You can check out some plural placeholder examples
