@@ -135,7 +135,8 @@ ezlz = "1"
 5. Return the buffer.
 
 ### Summary
-This approach combined with `itoa` and `zmij` for number-to-string conversion
+This approach combined with [itoa](https://crates.io/crates/itoa) and
+[zmij](https://crates.io/crates/zmij) for number-to-string conversion
 makes translation key lookups and placeholder rendering very fast. 
 See the [Benchmarks](#benchmarks) section for detailed statistics.
 
@@ -224,7 +225,7 @@ You can pass the following types into the placeholders:
 - Text: `String`, `&str`
 
 Or any custom type that implements `ezlz::ToArg` trait.
-Check out docs.rs or source code for reference.
+Check out [docs.rs](https://docs.rs/ezlz) or source code for reference.
 
 ### Pluralization
 Plural placeholders have an identifier and a set of rules, which are
