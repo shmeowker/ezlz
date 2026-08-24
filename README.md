@@ -66,24 +66,13 @@ fn current_locale() -> String {
 }
 ```
 
-### Templates
-```yaml
-examples:
-  # Plain text
-  hello: "Hello!"
-
-  # Text with placeholder
-  greeting: "Hello, {name}!"
-
-  # Multiple placeholders
-  stats: "{name} has {items} items."
-
-  # Pluralization examples
-  en: "{i|=1: fox| foxes}"
-  fr: "{i|~0-1: article| articles}"
-  ro: "{i|=0: vulpi|=1: vulpe|#1-19: vulpi| de vulpi}"
-  ru: "{i|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"
-  ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
+### Translations
+Each `.yml` or `.yaml` file in the locales directory contains
+translated texts for one language.
+The filename without the extension is the locale name.
+You must initialize ezlz with a fallback locale:
+```rust ignore
+ezlz::init("en", "locales").unwrap();
 ```
 
 
@@ -98,6 +87,21 @@ can be referenced as:
 ```rust ignore
 t!(lang, foo.bar.baz);
 t!(lang, foo.bar.qux);
+```
+
+
+Once `init` is called, each of the translated texts is parsed for 
+placeholders and stored in memory as a compiled `Template` object.
+
+
+If a requested locale does not contain the translation, 
+ezlz tries to find it in the fallback locale, and **panics
+if the fallback locale doesn't have it**.
+```rust ignore
+// Falls back to 'en'
+t!("cn", foo.bar);
+// Panic: Translation 'nonexistant.key' not found for locale 'en' and fallback locale 'en'.
+t!("en", nonexistant.key);
 ```
 
 
@@ -116,23 +120,24 @@ ezlz = "1"
 ## How it works
 
 ### Initialization
-1. Ezlz searches the provided directory for YAML files
-   and stores each name as a key in the `Translations` hashmap.
-   The file contents are parsed and each YAML key/value pair is processed:
+1. Searches the provided directory for YAML files.
+   Store each name as a key in the `Translations` hashmap.
+   Parse the file contents and process each key/value pair:
     - The keys become hashmap keys for the corresponding template.
     - The string values are parsed and each is compiled into a `Template` that can contain multiple
-       strings, regular and plural placeholders (which are also parsed and compiled into rulesets).
-2. Sets the provided fallback locale for `Translations`.
-3. Assigns the `Translations` to a static `OnceLock` for future access.
-4. Checks if the fallback locale exists in the hashmap and panics if it doesn't.
+      strings, regular and plural placeholders (which are also parsed and compiled into rulesets).
+2. Set the provided fallback locale for `Translations`.
+3. Assign the `Translations` to a static `OnceLock` for future access.
+4. Check if the fallback locale exists in the hashmap and panic if it doesn't.
 
 ### Runtime lookup
 1. Get the template hashmap by the provided locale name.
-2. Try getting a `Template` by the hardcoded key from that hashmap, or fallback locale
-   hashmap if not found, and panic if that doesn't have it.
-3. Create a new string buffer.
-4. Walk through parts of the `Template`, render each one, writing directly to the buffer.
-5. Return the buffer.
+2. Look up the Template by its hardcoded key in the current locale hashmap.
+   If it is not found, look it up in the fallback locale hashmap.
+   Panic if it is not found there either.
+5. Create a new string buffer.
+6. Walk through parts of the `Template`, render each one, writing directly to the buffer.
+7. Return the buffer.
 
 ### Summary
 This approach combined with [itoa](https://crates.io/crates/itoa) and
@@ -140,27 +145,6 @@ This approach combined with [itoa](https://crates.io/crates/itoa) and
 makes translation key lookups and placeholder rendering very fast. 
 See the [Benchmarks](#benchmarks) section for detailed statistics.
 
-
-## Translation files
-Each `.yml` or `.yaml` file in the localization directory represents one locale.
-The filename without the extension is the locale name.
-Initialize ezlz with the fallback locale:
-```rust ignore
-ezlz::init("en", "locales").unwrap();
-```
-
-
-If a requested locale does not contain the translation, 
-ezlz tries to find it in the fallback locale, and **panics
-if the fallback locale doesn't have it**.
-
-
-```rust ignore
-// Falls back to 'en'
-t!("cn", foo.bar);
-// Panic: Translation 'nonexistant.key' not found for locale 'en' and fallback locale 'en'.
-t!("en", nonexistant.key);
-```
 
 ## The `t!` macro
 Usage:
@@ -188,9 +172,9 @@ which name matches the placeholder name:
 
 ```rust ignore
 let name = "Anna";
-let count = 5u32;
+let items = 5_u32;
 
-t!("en", examples.stats, name, count);
+t!("en", examples.stats, name, items);
 ```
 
 For an explicit placeholder name or expression:
@@ -272,9 +256,14 @@ The `.` selector matches arguments that were originally passed
 as floating-point types, e.g. `1.0_f64` **does** match it even 
 though its numerical value is an integer.
 
-
-You can check out some plural placeholder examples
-for popular languages in the [Quick Start ⟩ Templates](#templates) section.
+#### Plural placeholder examples
+```yaml
+en: "{i|=1: fox| foxes}"
+fr: "{i|~0-1: article| articles}"
+ro: "{i|=0: vulpi|=1: vulpe|#1-19: vulpi| de vulpi}"
+ru: "{i|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"
+ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
+```
 
 ## Benchmarks
 
