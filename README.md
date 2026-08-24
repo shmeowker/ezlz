@@ -72,7 +72,7 @@ examples:
   # Plain text
   hello: "Hello!"
 
-  # Named interpolation
+  # Text with placeholder
   greeting: "Hello, {name}!"
 
   # Multiple placeholders
@@ -137,7 +137,7 @@ ezlz = "1"
 ### Summary
 This approach combined with `itoa` and `zmij` for number-to-string conversion
 makes translation key lookups and placeholder rendering very fast. 
-See the **Benchmarks** section for detailed statistics.
+See the [Benchmarks](#benchmarks) section for detailed statistics.
 
 
 ## Translation files
@@ -258,23 +258,23 @@ Rules are evaluated from left to right. The first matching rule is selected.
 | *(none)* | Unconditional fallback                | `text`              |
 
 
-Rules can use `+` for an open-ended range:
+Rules can use `+` for an open-ended range.
+N is input.abs().trunc() as u64, as mentioned above.
 ```text
 %1+   modulo 10 of N is 1 or greater
 #11+  modulo 100 of N is 11 or greater
 =1+   N is 1 or greater
 ~1+   N is 1 or greater, including float inputs
 ```
-> N is value.abs().trunc() as u64, as mentioned above.
 
 
-The `.` selector matches arguments that were 
-originally passed as floating-point types,
-e.g. `1.0_f64` **does** match it even though its numerical value is integer.
+The `.` selector matches arguments that were originally passed 
+as floating-point types, e.g. `1.0_f64` **does** match it even 
+though its numerical value is integer.
 
 
 You can check out some plural placeholder examples
-for popular languages in the **Quick Start ⟩ Templates** section.
+for popular languages in the [Quick Start ⟩ Templates](#templates) section.
 
 ## Benchmarks
 
