@@ -32,7 +32,7 @@ messages:
 # locales/fr.yml
 messages:
   hello: "Bonjour, {name}!"
-  items: "Vous avez {n|~0: object|=1: object| objects}."
+  items: "Vous avez {n|~0-1: object| objects}."
 
 # locales/ru.yml
 messages:
