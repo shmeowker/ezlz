@@ -7,6 +7,10 @@ test:
   fr: "{i|~0-1: article| articles}"
   cn: "{i| 件}"
   replace: "{i|=0:=zero|=1:=one|=2:=two|=3:=three|=4:=four|=5:=five}"
+  escape: "\\{x}"
+  escape2: "\\\\{x}"
+  escape3: "\\\\\\{x}"
+  escape4: '\{x} bar \\{x} qux \\\{x}'
 
 bench:
   literal: "Lorem ipsum dolor sit amet..."

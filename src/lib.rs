@@ -38,6 +38,12 @@ pub enum Error {
         path: PathBuf,
         message: String,
     },
+
+    InvalidTemplate {
+        path: PathBuf,
+        key: String,
+        message: String,
+    },
 }
 
 impl Display for Error {
@@ -53,6 +59,14 @@ impl Display for Error {
 
             Self::InvalidYaml { path, message } => {
                 write!(f, "Invalid YAML in {}: {message}.", path.to_string_lossy())
+            }
+
+            Self::InvalidTemplate { path, key, message } => {
+                write!(
+                    f,
+                    "Invalid template '{key}' in {}: {message}.",
+                    path.to_string_lossy()
+                )
             }
         }
     }
@@ -198,9 +212,18 @@ fn flatten_yaml(
         }
 
         Value::String(value) => {
-            let translation = Template::compile(value);
+            let template = match Template::compile(value) {
+                Ok(template) => template,
+                Err(msg) => {
+                    return Err(Error::InvalidTemplate {
+                        path: path.to_path_buf(),
+                        key: prefix,
+                        message: msg,
+                    });
+                }
+            };
 
-            output.insert(prefix.into_boxed_str(), translation);
+            output.insert(prefix.into_boxed_str(), template);
         }
 
         _ => {
@@ -228,73 +251,88 @@ enum Part {
     },
 }
 
+impl Part {
+    fn parse_placeholder(source: &str) -> Result<Self, String> {
+        if is_identifier(source) {
+            return Ok(Self::Variable {
+                name: source.into(),
+            });
+        }
+        if let Some((name, rules)) = plural::compile(source) {
+            return Ok(Self::Plural { name, rules });
+        }
+        Err(format!("Unable to parse placeholder"))
+    }
+    fn parse_next(source: &str) -> Result<(Self, &str), String> {
+        fn str_from_bytes(bytes: &[u8]) -> &str {
+            unsafe { str::from_utf8_unchecked(bytes) }
+        }
+        fn is_escaped(bytes: &[u8], i: usize) -> bool {
+            let mut backslashes = 0;
+            for b in bytes[..i].iter().rev() {
+                if *b == b'\\' {
+                    backslashes += 1;
+                } else {
+                    break;
+                }
+            }
+            backslashes % 2 == 1
+        }
+        let bytes = source.as_bytes();
+        let size = bytes.len();
+        let mut text = String::with_capacity(size);
+        let mut i = 0;
+        while i < size {
+            match bytes[i] {
+                b'{' if !is_escaped(bytes, i) => {
+                    if text.is_empty() {
+                        let Some(end) = source[i + 1..].find('}').map(|r_end| i + 1 + r_end) else {
+                            return Err(format!("Unclosed placeholder"));
+                        };
+                        let body = str_from_bytes(&bytes[i + 1..end]);
+                        let part = Self::parse_placeholder(body)?;
+                        let rest = &source[end + 1..];
+                        return Ok((part, rest));
+                    } else {
+                        text = text.replace("\\{", "{");
+                        let part = Self::Text(text.into_boxed_str());
+                        let rest = str_from_bytes(&bytes[i..]);
+                        return Ok((part, rest));
+                    }
+                }
+                byte => unsafe {
+                    text.as_mut_vec().push(byte);
+                    i += 1;
+                },
+            }
+        }
+        text = text.replace("\\{", "{");
+        Ok((Self::Text(text.into_boxed_str()), ""))
+    }
+}
+
 #[derive(Debug)]
 struct Template {
     parts: Box<[Part]>,
 }
 
 impl Template {
-    fn compile(template: &str) -> Self {
+    fn compile(translation: &str) -> Result<Self, String> {
         let mut parts = Vec::new();
-        let mut text_start = 0;
-        let bytes = template.as_bytes();
+        let mut source = translation;
 
-        let mut i = 0;
-
-        while i < bytes.len() {
-            if bytes[i] != b'{' {
-                i += 1;
-                continue;
-            }
-
-            // Find the closing `}`.
-            let Some(relative_end) = template[i + 1..].find('}') else {
-                i += 1;
-                continue;
+        while !source.is_empty() {
+            let (part, rest) = match Part::parse_next(source) {
+                Ok((part, rest)) => (part, rest),
+                Err(msg) => return Err(msg),
             };
-
-            let end = i + 1 + relative_end;
-
-            // Text preceding the placeholder.
-            if text_start < i {
-                parts.push(Part::Text(template[text_start..i].into()));
-            }
-
-            let placeholder = &template[i + 1..end];
-
-            // Ordinary `{name}` placeholder.
-            if is_identifier(placeholder) {
-                parts.push(Part::Variable {
-                    name: placeholder.into(),
-                });
-
-                i = end + 1;
-                text_start = i;
-                continue;
-            }
-
-            if let Some((name, rules)) = plural::compile(placeholder) {
-                parts.push(Part::Plural { name, rules });
-
-                i = end + 1;
-                text_start = i;
-                continue;
-            }
-
-            parts.push(Part::Text(template[i..=end].into()));
-
-            i = end + 1;
-            text_start = i;
+            parts.push(part);
+            source = rest;
         }
 
-        // Remaining text.
-        if text_start < template.len() {
-            parts.push(Part::Text(template[text_start..].into()));
-        }
-
-        Self {
+        Ok(Self {
             parts: parts.into_boxed_slice(),
-        }
+        })
     }
 
     fn render(&self, args: &[(&str, Arg<'_>)]) -> String {

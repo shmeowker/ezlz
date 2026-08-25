@@ -201,6 +201,11 @@ Plural placeholder:
 ```yaml
 items: "You have {items|=1: item| items}."
 ```
+Escaping:
+```yaml
+escape: 'this is \{not a placeholder}'
+double: 'but this is a \\{placeholder} with a \ before it'
+```
 You can have multiple placeholders in a template. 
 Placeholder names can repeat.
 

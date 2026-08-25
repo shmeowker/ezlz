@@ -1,4 +1,4 @@
-use crate::Arg;
+use crate::{Arg, is_identifier};
 
 #[derive(Debug)]
 struct Rule {
@@ -85,7 +85,10 @@ fn selector(s: &str) -> (u8, u8, u8) {
 pub fn compile(input: &str) -> Option<(Box<str>, Ruleset)> {
     let mut parts = input.split('|');
 
-    let name = parts.next()?.into();
+    let name = parts.next()?;
+    if !is_identifier(&name) {
+        return None;
+    }
 
     let mut rules = Vec::new();
 
@@ -112,7 +115,7 @@ pub fn compile(input: &str) -> Option<(Box<str>, Ruleset)> {
     }
 
     Some((
-        name,
+        name.into(),
         Ruleset {
             rules: rules.into_boxed_slice(),
         },
