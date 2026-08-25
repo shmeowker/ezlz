@@ -318,4 +318,4 @@ For development, the benchmark source is in `benches/benchmarks.rs`.
 
 ## License
 
-MI
+MIT
