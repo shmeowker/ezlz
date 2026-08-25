@@ -120,30 +120,33 @@ ezlz = "1"
 ## How it works
 
 ### Initialization
-1. Searches the provided directory for YAML files.
-   Store each name as a key in the `Translations` hashmap.
-   Parse the file contents and process each key/value pair:
-    - The keys become hashmap keys for the corresponding template.
-    - The string values are parsed and each is compiled into a `Template` that can contain multiple
-      strings, regular and plural placeholders (which are also parsed and compiled into rulesets).
-2. Set the provided fallback locale for `Translations`.
-3. Assign the `Translations` to a static `OnceLock` for future access.
-4. Check if the fallback locale exists in the hashmap and panic if it doesn't.
+1. Search the provided directory for `.yml` and `.yaml` files.
+   Each filename becomes a locale name.
+2. Parse each YAML file and recursively flatten its mappings into
+   dotted translation keys. String values are compiled into `Template`
+   objects containing `Part`s for text, regular placeholders, and plural
+   placeholders. Plural placeholders are compiled into `Ruleset`s.
+3. Store the compiled templates in an `AHashMap` for each locale and
+   store all locales together with the fallback locale in `Translations`.
+4. Store `Translations` in a global `OnceLock`. `init` can only be called once,
+   and it panics if the configured fallback locale does not exist.
 
 ### Runtime lookup
-1. Get the template hashmap by the provided locale name.
-2. Look up the Template by its hardcoded key in the current locale hashmap.
-   If it is not found, look it up in the fallback locale hashmap.
-   Panic if it is not found there either.
-5. Create a new string buffer.
-6. Walk through parts of the `Template`, render each one, writing directly to the buffer.
-7. Return the buffer.
+1. `t!` expands to a call that passes the locale, hardcoded translation key,
+   and converted arguments to the runtime lookup function.
+2. Look up the `Template` by key in the requested locale. If it is not found,
+   try the same key in the fallback locale. Panic if it is not found there either.
+3. Render the template by walking through its precompiled `Part`s. Text is appended
+   directly to the output buffer, while regular and plural placeholders look up their 
+   arguments and render them into the same buffer.
+4. Return the resulting `String`.
 
 ### Summary
-This approach combined with [itoa](https://crates.io/crates/itoa) and
-[zmij](https://crates.io/crates/zmij) for number-to-string conversion
-makes translation key lookups and placeholder rendering very fast. 
-See the [Benchmarks](#benchmarks) section for detailed statistics.
+This keeps YAML parsing, template compilation, and plural rule compilation out of 
+the rendering path. Combined with [`itoa`](https://crates.io/crates/itoa) and 
+[`zmij`](https://crates.io/crates/zmij) for number-to-string conversion, this makes 
+translation lookup and placeholder rendering fast. See the [Benchmarks](#benchmarks) 
+section for detailed statistics.
 
 
 ## The `t!` macro
@@ -310,4 +313,4 @@ For development, the benchmark source is in `benches/benchmarks.rs`.
 
 ## License
 
-MIT
+MI
