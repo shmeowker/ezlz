@@ -42,12 +42,9 @@ pub enum Error {
         source: serde_yaml::Error,
     },
     /// Unexpected value type.
-    /// 
+    ///
     /// Translation files must only have string values.
-    InvalidYaml {
-        path: PathBuf,
-        message: String,
-    },
+    InvalidYaml { path: PathBuf, message: String },
     /// Error during [`Template`] compilation.
     ///
     /// Occures if a translation string has
@@ -342,11 +339,11 @@ impl Template {
                 Ok((part, rest)) => {
                     match &part {
                         Part::Text(text) => bufsize += text.len(),
-                        Part::Variable { name: _} => bufsize += APPROX_ARG_LEN,
-                        Part::Plural { name: _, rules: _} => bufsize += APPROX_ARG_LEN,
+                        Part::Variable { name: _ } => bufsize += Self::APPROX_ARG_LEN,
+                        Part::Plural { name: _, rules: _ } => bufsize += Self::APPROX_ARG_LEN,
                     }
                     (part, rest)
-                },
+                }
                 Err(msg) => return Err(msg),
             };
             parts.push(part);
