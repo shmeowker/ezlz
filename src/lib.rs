@@ -256,7 +256,7 @@ impl Part {
         if let Some((name, rules)) = plural::compile(source) {
             return Ok(Self::Plural { name, rules });
         }
-        Err(format!("Unable to parse placeholder"))
+        Err("Unable to parse placeholder".to_string())
     }
     /// Parse the first valid [`Part`] from a string slice and
     /// return it among with the rest of that string slice.
@@ -285,7 +285,7 @@ impl Part {
                 b'{' if !is_escaped(bytes, i) => {
                     if text.is_empty() {
                         let Some(end) = source[i + 1..].find('}').map(|r_end| i + 1 + r_end) else {
-                            return Err(format!("Unclosed placeholder"));
+                            return Err("Unclosed placeholder".to_string());
                         };
                         let body = str_from_bytes(&bytes[i + 1..end]);
                         let part = Self::parse_placeholder(body)?;

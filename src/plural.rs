@@ -86,7 +86,7 @@ pub fn compile(input: &str) -> Option<(Box<str>, Ruleset)> {
     let mut parts = input.split('|');
 
     let name = parts.next()?;
-    if !is_identifier(&name) {
+    if !is_identifier(name) {
         return None;
     }
 
