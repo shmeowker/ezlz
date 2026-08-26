@@ -22,23 +22,36 @@ struct Translations {
     locales: AHashMap<Box<str>, AHashMap<Box<str>, Template>>,
 }
 
+/// Errors that may be produced during [`init`].
 #[derive(Debug)]
 pub enum Error {
+    /// File system errors.
+    ///
+    /// Occures if the process has no permissions
+    /// to read the provided directory.
     Io {
         path: PathBuf,
         source: std::io::Error,
     },
-
+    /// YAML syntax errors.
+    ///
+    /// Occures if a file has broken identation
+    /// or is not a correctly formatted YAML.
     ParseYaml {
         path: PathBuf,
         source: serde_yaml::Error,
     },
-
+    /// Unexpected value type.
+    /// 
+    /// Translation files must only have string values.
     InvalidYaml {
         path: PathBuf,
         message: String,
     },
-
+    /// Error during [`Template`] compilation.
+    ///
+    /// Occures if a translation string has
+    /// unclosed or invalid placeholders.
     InvalidTemplate {
         path: PathBuf,
         key: String,
@@ -74,31 +87,15 @@ impl Display for Error {
 
 impl StdError for Error {}
 
-/// Initialize from a localization `directory`, using `fallback`
-/// locale if some translation is not present in provided language.
+/// Initialize from a localization `directory`. The `fallback`
+/// locale if used if some translation is unavailable by requested
+/// locale key. May return an [`Error`].
 ///
-/// Each `.yml`/`.yaml` file represents a locale.
-///
-/// ```text
-/// locales/
-/// ├── en.yml
-/// ├── en_GB.yml
-/// └── ru.yml
-/// ```
-///
-/// ```yaml
-/// # locales/en.yml
-/// messages:
-///   hello: "Hello"
-///   greet: "Hello, {name}!"
-/// ui:
-///   plural: "You have {i|=1: item| items}"
-/// ```
-///
-/// YAML mappings become dotted translation keys.
-/// These can be then used in the proc-macro syntax:
 /// ```rust ignore
 /// use ezlz::t;
+///
+/// // Will search "locales" for translation files
+/// // and use "en" as fallback locale.
 /// ezlz::init("en", "locales").unwrap();
 ///
 /// fn get_lang() -> String {
@@ -109,8 +106,8 @@ impl StdError for Error {}
 /// t!("en_GB", messages.greet, name = "Anna");
 /// // If the variable name matches placeholder name,
 /// // using explicit placeholder names is unneccesary:
-/// let i: u8 = 7;
-/// t!(get_lang(), ui.plural, i);
+/// let name = "Anna";
+/// t!(get_lang(), messages.greet, name);
 /// ```
 pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
     let fallback = fallback.into();
@@ -252,6 +249,7 @@ enum Part {
 }
 
 impl Part {
+    /// Parse a placeholder from a string slice containing its body.
     fn parse_placeholder(source: &str) -> Result<Self, String> {
         if is_identifier(source) {
             return Ok(Self::Variable {
@@ -263,7 +261,10 @@ impl Part {
         }
         Err(format!("Unable to parse placeholder"))
     }
+    /// Parse the first valid [`Part`] from a string slice and
+    /// return it among with the rest of that string slice.
     fn parse_next(source: &str) -> Result<(Self, &str), String> {
+        #[inline]
         fn str_from_bytes(bytes: &[u8]) -> &str {
             unsafe { str::from_utf8_unchecked(bytes) }
         }
@@ -311,19 +312,41 @@ impl Part {
     }
 }
 
+/// A compiled representation of a translation string.
 #[derive(Debug)]
 struct Template {
     parts: Box<[Part]>,
+    /// Approximate size of a rendered template.
+    ///
+    /// Calulated in [`Template::compile`].
+    /// Used as size of string buffer in [`Template::render`].
+    bufsize: usize,
 }
 
 impl Template {
+    /// Approximate size of a rendered placeholder.
+    const APPROX_ARG_LEN: usize = 32;
+    /// Parse a translation string and compile its segments
+    /// to a list of [`Part`]s.
+    ///
+    /// Calculates the approximate size of rendered self by
+    /// adding the total size of text parts to amount of placeholders
+    /// multiplied by [`APPROX_ARG_LEN`].
     fn compile(translation: &str) -> Result<Self, String> {
         let mut parts = Vec::new();
         let mut source = translation;
+        let mut bufsize = 0;
 
         while !source.is_empty() {
             let (part, rest) = match Part::parse_next(source) {
-                Ok((part, rest)) => (part, rest),
+                Ok((part, rest)) => {
+                    match &part {
+                        Part::Text(text) => bufsize += text.len(),
+                        Part::Variable { name: _} => bufsize += APPROX_ARG_LEN,
+                        Part::Plural { name: _, rules: _} => bufsize += APPROX_ARG_LEN,
+                    }
+                    (part, rest)
+                },
                 Err(msg) => return Err(msg),
             };
             parts.push(part);
@@ -332,11 +355,17 @@ impl Template {
 
         Ok(Self {
             parts: parts.into_boxed_slice(),
+            bufsize,
         })
     }
 
+    /// Render a template.
+    ///
+    /// Iterates over the [`Part`]s of a template and
+    /// renders each part in a way corresponding to its
+    /// variant to a [`String`] buffer, returning the buffer.
     fn render(&self, args: &[(&str, Arg<'_>)]) -> String {
-        let mut output = String::new();
+        let mut output = String::with_capacity(self.bufsize);
 
         for part in &self.parts {
             match part {
@@ -362,6 +391,7 @@ impl Template {
     }
 }
 
+/// Find an [`Arg`] by its `name` in a list of `args`.
 #[inline]
 fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> {
     args.iter()
@@ -369,6 +399,9 @@ fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> 
         .map(|(_, value)| value)
 }
 
+/// Checks if a string is ASCII alphanumeric.
+///
+/// Used to validate placeholder identifiers.
 fn is_identifier(s: &str) -> bool {
     let mut chars = s.chars();
     chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
@@ -526,7 +559,7 @@ where
 
 /// Generated in place of the [`t!`] proc-macro.
 ///
-/// Panics if `ezlz` has not been initialized
+/// Panics if [`init`] has not been called
 /// or if a translation cannot be found in requested
 /// and fallback locale.
 pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {

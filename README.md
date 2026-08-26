@@ -143,10 +143,11 @@ ezlz = "1"
 
 ### Summary
 This keeps YAML parsing, template compilation, and plural rule compilation out of 
-the rendering path. Combined with [`itoa`](https://crates.io/crates/itoa) and 
+the rendering path. Combined with [`ahash`](https://crates.io/crates/ahash) for
+translation mapping, [`itoa`](https://crates.io/crates/itoa) and 
 [`zmij`](https://crates.io/crates/zmij) for number-to-string conversion, this makes 
-translation lookup and placeholder rendering fast. See the [Benchmarks](#benchmarks) 
-section for detailed statistics.
+translation lookup and placeholder rendering fast enough for running in
+hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
 
 
 ## The `t!` macro
@@ -286,17 +287,17 @@ Results:
 
 | Benchmark          | Description             |   Average |
 | ------------------ | ----------------------- | --------: |
-| `text`             | No placeholders         |     87 ns |
+| `text`             | No placeholders         |     83 ns |
 | `simple`           | Single integer          |     93 ns |
-| `simple<-string`   | Single string           |     87 ns |
-| `simple<-float`    | Single float            |    112 ns |
-| `simple (x10)`     | 10 `simple` in one      |    259 ns |
-| `plural_en`        | English integer plural  |    128 ns |
-| `plural_en<-float` | English float plural    |    148 ns |
-| `plural_en (x10)`  | 10 `plural_en` in one   |    163 ns |
-| `plural_fr<-float` | French float plural     |    148 ns |
-| `plural_ru`        | Russian integer plural  |    133 ns |
-| `plural_ru<-float` | Russian float plural    |    146 ns |
+| `simple<-string`   | Single string           |     88 ns |
+| `simple<-float`    | Single float            |    113 ns |
+| `simple (x10)`     | 10 `simple` in one      |    162 ns |
+| `plural_en`        | English integer plural  |    104 ns |
+| `plural_en<-float` | English float plural    |    126 ns |
+| `plural_en (x10)`  | 10 `plural_en` in one   |    139 ns |
+| `plural_fr<-float` | French float plural     |    126 ns |
+| `plural_ru`        | Russian integer plural  |    108 ns |
+| `plural_ru<-float` | Russian float plural    |    125 ns |
 
 100 ns is 10M iterations per second.
 
