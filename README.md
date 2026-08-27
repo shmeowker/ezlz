@@ -1,17 +1,17 @@
 # ezlz
-A compact and fast localization engine for Rust with language-independent procedural pluralization.
+A compact internationalization crate optimized for hot loops.
 
 ## Overview
 The idea is to support all natural languages while keeping
-the crate small and fast so it can be integrated into web templates 
-and UIs where full CLDR functionality is not required. If you
-really need extensive and complex formatting, consider
+the crate simple and fast so it can be integrated into web templates 
+and UIs that run in hot loops where full CLDR functionality is not required.
+If you actually need extensive and complex formatting, consider
 some other crates like [icu](https://crates.io/crates/icu).
 
 ### Features
  - **Fast**: Translations are compiled at runtime and can be rendered at over 10 million times per second for simple templates.
  - **Simple**: The basic API is just a single function and a macro.
- - **No CLDR pluralization**: Plural rules are compiled from placeholder syntax.
+ - **Pluralization**: Plural rules are compiled from placeholder syntax.
 
 
 ## Quick start
@@ -115,39 +115,6 @@ Or manually to `Cargo.toml`:
 [dependencies]
 ezlz = "1"
 ```
-
-
-## How it works
-
-### Initialization
-1. Search the provided directory for `.yml` and `.yaml` files.
-   Each filename becomes a locale name.
-2. Parse each YAML file and recursively flatten its mappings into
-   dotted translation keys. String values are compiled into `Template`
-   objects containing `Part`s for text, regular placeholders, and plural
-   placeholders. Plural placeholders are compiled into `Ruleset`s.
-3. Store the compiled templates in an `AHashMap` for each locale and
-   store all locales together with the fallback locale in `Translations`.
-4. Store `Translations` in a global `OnceLock`. `init` can only be called once,
-   and it panics if the configured fallback locale does not exist.
-
-### Runtime lookup
-1. `t!` expands to a call that passes the locale, hardcoded translation key,
-   and converted arguments to the runtime lookup function.
-2. Look up the `Template` by key in the requested locale. If it is not found,
-   try the same key in the fallback locale. Panic if it is not found there either.
-3. Render the template by walking through its precompiled `Part`s. Text is appended
-   directly to the output buffer, while regular and plural placeholders look up their 
-   arguments and render them into the same buffer.
-4. Return the resulting `String`.
-
-### Summary
-This keeps YAML parsing, template compilation, and plural rule compilation out of 
-the rendering path. Combined with [`ahash`](https://crates.io/crates/ahash) for
-translation mapping, [`itoa`](https://crates.io/crates/itoa) and 
-[`zmij`](https://crates.io/crates/zmij) for number-to-string conversion, this makes 
-translation lookup and placeholder rendering fast enough for running in
-hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
 
 
 ## The `t!` macro
@@ -274,6 +241,40 @@ ru: "{i|.: стола|#11-14: столов|%1: стол|%2-4: стола| сто
 ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
 ```
 
+
+## How it works
+
+### Initialization
+1. Search the provided directory for `.yml` and `.yaml` files.
+   Each filename becomes a locale name.
+2. Parse each YAML file and recursively flatten its mappings into
+   dotted translation keys. String values are compiled into `Template`
+   objects containing `Part`s for text, regular placeholders, and plural
+   placeholders. Plural placeholders are compiled into `Ruleset`s.
+3. Store the compiled templates in an `AHashMap` for each locale and
+   store all locales together with the fallback locale in `Translations`.
+4. Store `Translations` in a global `OnceLock`. `init` can only be called once,
+   and it panics if the configured fallback locale does not exist.
+
+### Runtime lookup
+1. `t!` expands to a call that passes the locale, hardcoded translation key,
+   and converted arguments to the runtime lookup function.
+2. Look up the `Template` by key in the requested locale. If it is not found,
+   try the same key in the fallback locale. Panic if it is not found there either.
+3. Render the template by walking through its precompiled `Part`s. Text is appended
+   directly to the output buffer, while regular and plural placeholders look up their 
+   arguments and render them into the same buffer.
+4. Return the resulting `String`.
+
+### Summary
+This keeps YAML parsing, template compilation, and plural rule compilation out of 
+the rendering path. Combined with [`ahash`](https://crates.io/crates/ahash) for
+translation mapping, [`itoa`](https://crates.io/crates/itoa) and 
+[`zmij`](https://crates.io/crates/zmij) for number-to-string conversion, this makes 
+translation lookup and placeholder rendering fast enough for running in
+hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
+
+
 ## Benchmarks
 
 Benchmarks were run with Criterion harness using:
@@ -287,9 +288,9 @@ Results:
 
 | Benchmark          | Description             |   Average |
 | ------------------ | ----------------------- | --------: |
-| `text`             | No placeholders         |     83 ns |
-| `simple`           | Single integer          |     93 ns |
-| `simple<-string`   | Single string           |     88 ns |
+| `text`             | No placeholders         |     80 ns |
+| `simple`           | Single integer          |     91 ns |
+| `simple<-string`   | Single string           |     87 ns |
 | `simple<-float`    | Single float            |    113 ns |
 | `simple (x10)`     | 10 `simple` in one      |    162 ns |
 | `plural_en`        | English integer plural  |    104 ns |
@@ -298,15 +299,6 @@ Results:
 | `plural_fr<-float` | French float plural     |    126 ns |
 | `plural_ru`        | Russian integer plural  |    108 ns |
 | `plural_ru<-float` | Russian float plural    |    125 ns |
-
-100 ns is 10M iterations per second.
-
-> The noise threshold is roughly 5%
-> because the benchmarks were run on an actively used phone without
-> dedicated cooling or background-process isolation. If you have better
-> benchmark results, please open an issue and paste the Criterion output
-> and your system specs so I can update this table for more realistic
-> numbers on desktop systems.
 
 ### Running the benchmarks
 

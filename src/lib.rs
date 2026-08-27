@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
+
 use ahash::AHashMap;
 use serde_yaml::{Value, from_str};
+
 use std::{
     error::Error as StdError,
     fmt::{Display, Formatter, Result as FmtResult},
@@ -8,6 +10,7 @@ use std::{
     path::{Path, PathBuf},
     sync::OnceLock,
 };
+
 mod plural;
 pub use ezlz_macros::t;
 
@@ -16,26 +19,28 @@ pub use ezlz_macros::t;
 /// `init()` populates this exactly once.
 static TRANSLATIONS: OnceLock<Translations> = OnceLock::new();
 
+/// Stores all compiled [`Template`]s for all the locales among
+/// with the name of the fallback locale.
 #[derive(Debug)]
 struct Translations {
     fallback: Box<str>,
     locales: AHashMap<Box<str>, AHashMap<Box<str>, Template>>,
 }
 
-/// Errors that may be produced during [`init`].
+/// Errors that may occur during [`init`].
 #[derive(Debug)]
 pub enum Error {
     /// File system errors.
     ///
-    /// Occures if the process has no permissions
-    /// to read the provided directory.
+    /// Occurs if the process has no permissions
+    /// to open a file or a read operation was interrupted.
     Io {
         path: PathBuf,
         source: std::io::Error,
     },
     /// YAML syntax errors.
     ///
-    /// Occures if a file has broken identation
+    /// Occurs if a file has broken identation
     /// or is not a correctly formatted YAML.
     ParseYaml {
         path: PathBuf,
@@ -47,7 +52,7 @@ pub enum Error {
     InvalidYaml { path: PathBuf, message: String },
     /// Error during [`Template`] compilation.
     ///
-    /// Occures if a translation string has
+    /// Occurs if a translation string has
     /// unclosed or invalid placeholders.
     InvalidTemplate {
         path: PathBuf,
@@ -85,7 +90,7 @@ impl Display for Error {
 impl StdError for Error {}
 
 /// Initialize from a localization `directory`. The `fallback`
-/// locale if used if some translation is unavailable by requested
+/// locale is used if some translation is unavailable by requested
 /// locale key. May return an [`Error`].
 ///
 /// ```rust ignore
@@ -231,14 +236,14 @@ fn flatten_yaml(
     Ok(())
 }
 
+/// A compiled segment of a translation text.
 #[derive(Debug)]
 enum Part {
+    /// Plain text part.
     Text(Box<str>),
-
-    Variable {
-        name: Box<str>,
-    },
-
+    /// Regular placeholder.
+    Variable { name: Box<str> },
+    /// Plural placeholder.
     Plural {
         name: Box<str>,
         rules: plural::Ruleset,
@@ -258,13 +263,15 @@ impl Part {
         }
         Err("Unable to parse placeholder".to_string())
     }
+
     /// Parse the first valid [`Part`] from a string slice and
     /// return it among with the rest of that string slice.
     fn parse_next(source: &str) -> Result<(Self, &str), String> {
-        #[inline]
+        /// Converts a slice of bytes to a string slice.
         fn str_from_bytes(bytes: &[u8]) -> &str {
             unsafe { str::from_utf8_unchecked(bytes) }
         }
+        /// Checks if byte at index `i` has odd amount of `\` before it.
         fn is_escaped(bytes: &[u8], i: usize) -> bool {
             let mut backslashes = 0;
             for b in bytes[..i].iter().rev() {
@@ -312,6 +319,7 @@ impl Part {
 /// A compiled representation of a translation string.
 #[derive(Debug)]
 struct Template {
+    /// List of the compiled template parts.
     parts: Box<[Part]>,
     /// Approximate size of a rendered template.
     ///
@@ -328,7 +336,7 @@ impl Template {
     ///
     /// Calculates the approximate size of rendered self by
     /// adding the total size of text parts to amount of placeholders
-    /// multiplied by [`APPROX_ARG_LEN`].
+    /// multiplied by [`Template::APPROX_ARG_LEN`].
     fn compile(translation: &str) -> Result<Self, String> {
         let mut parts = Vec::new();
         let mut source = translation;
@@ -339,8 +347,12 @@ impl Template {
                 Ok((part, rest)) => {
                     match &part {
                         Part::Text(text) => bufsize += text.len(),
-                        Part::Variable { name: _ } => bufsize += Self::APPROX_ARG_LEN,
-                        Part::Plural { name: _, rules: _ } => bufsize += Self::APPROX_ARG_LEN,
+                        Part::Variable { name: _ } => {
+                            bufsize += Self::APPROX_ARG_LEN;
+                        }
+                        Part::Plural { name: _, rules: _ } => {
+                            bufsize += Self::APPROX_ARG_LEN;
+                        }
                     }
                     (part, rest)
                 }
@@ -362,6 +374,13 @@ impl Template {
     /// renders each part in a way corresponding to its
     /// variant to a [`String`] buffer, returning the buffer.
     fn render(&self, args: &[(&str, Arg<'_>)]) -> String {
+        /// Find an [`Arg`] by its `name` in a list of `args`.
+        fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> {
+            args.iter()
+                .find(|(arg_name, _)| *arg_name == name)
+                .map(|(_, value)| value)
+        }
+
         let mut output = String::with_capacity(self.bufsize);
 
         for part in &self.parts {
@@ -388,121 +407,107 @@ impl Template {
     }
 }
 
-/// Find an [`Arg`] by its `name` in a list of `args`.
-#[inline]
-fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> {
-    args.iter()
-        .find(|(arg_name, _)| *arg_name == name)
-        .map(|(_, value)| value)
-}
-
 /// Checks if a string is ASCII alphanumeric.
 ///
-/// Used to validate placeholder identifiers.
+/// Used to validate placeholder names.
 fn is_identifier(s: &str) -> bool {
     let mut chars = s.chars();
     chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
-/// The kind of type an [`Arg`] is constructed from.
-#[derive(PartialEq)]
-pub enum ArgKind {
-    Int,
-    Uint,
-    Float,
-    String,
-}
-
 /// An argument passed to a translation template.
-pub struct Arg<'a> {
-    pub value: ArgValue<'a>,
-    pub kind: ArgKind,
-}
-
-/// The value stored in an [`Arg`].
 ///
-/// Only the field corresponding to [`Arg::kind`] may be read.
-pub union ArgValue<'a> {
-    pub int: i64,
-    pub uint: u64,
-    pub float: f64,
-    pub string: &'a str,
+/// Wraps the input value to determine the rendering approach.
+#[derive(PartialEq, Debug)]
+pub enum Arg<'a> {
+    /// Signed integers.
+    Int(i64),
+    /// Unsigned integers.
+    Uint(u64),
+    /// Floating point numbers.
+    Float(f64),
+    /// String types.
+    String(&'a str),
 }
 
 impl<'a> Arg<'a> {
+    /// Checks if self is an [`Arg::String`].
     #[inline]
     fn is_numberic(&self) -> bool {
-        self.kind != ArgKind::String
+        !matches!(self, Self::String(..))
     }
+    /// Returns truncated absolute value of numberic self.
     #[inline]
     fn abs_trunc(&self) -> u64 {
         unsafe {
-            match self.kind {
-                ArgKind::Int => self.value.int.unsigned_abs(),
-                ArgKind::Uint => self.value.uint,
-                ArgKind::Float => self.value.float.abs() as u64,
-                _ => std::hint::unreachable_unchecked(),
+            match self {
+                Self::Int(value) => value.unsigned_abs(),
+                Self::Uint(value) => *value,
+                Self::Float(value) => value.abs() as u64,
+                // Because this function is only called after making sure
+                // an arg is numberic, the string arm is not needed.
+                Self::String(_) => std::hint::unreachable_unchecked(),
             }
         }
     }
+    /// Checks if self is an [`Arg::Float`].
     #[inline]
     fn is_float(&self) -> bool {
-        self.kind == ArgKind::Float
+        matches!(self, Self::Float(..))
     }
+    /// Writes the value of self to the `out` buffer using one
+    /// of the methods corresponding to the enum variant of self.
     #[inline]
     fn write_to(&self, out: &mut String) {
-        unsafe {
-            match self.kind {
-                ArgKind::Int => {
-                    let mut buf = itoa::Buffer::new();
-                    let n = buf.format(self.value.int);
-                    out.push_str(n);
-                }
-                ArgKind::Uint => {
-                    let mut buf = itoa::Buffer::new();
-                    let n = buf.format(self.value.uint);
-                    out.push_str(n);
-                }
-                ArgKind::Float => {
-                    let mut buf = zmij::Buffer::new();
-                    let n = buf.format(self.value.float);
-                    out.push_str(n);
-                }
-                ArgKind::String => {
-                    out.push_str(self.value.string);
-                }
+        match self {
+            Self::Int(value) => {
+                let mut buf = itoa::Buffer::new();
+                let n = buf.format(*value);
+                out.push_str(n);
+            }
+            Self::Uint(value) => {
+                let mut buf = itoa::Buffer::new();
+                let n = buf.format(*value);
+                out.push_str(n);
+            }
+            Self::Float(value) => {
+                let mut buf = zmij::Buffer::new();
+                let n = buf.format(*value);
+                out.push_str(n);
+            }
+            Self::String(value) => {
+                out.push_str(value);
             }
         }
     }
 }
 
-/// Converts the type reference to an [`Arg`].
+/// Trait for types whose references can be converted to an [`Arg`].
 ///
-/// Must set the [`Arg::kind`] to the
-/// variant of [`ArgKind`] that matches the
-/// input type group and assign the value
-/// to a corresponding field of [`ArgValue`].
+/// Preimplemented for
+/// [`u8`], [`u16`], [`u32`], [`u64`], [`usize`],
+/// [`i8`], [`i16`], [`i32`], [`i64`], [`isize`],
+/// [`f32`], [`f64`],
+/// [`String`], and &[`str`].
 pub trait ToArg<'a> {
+    /// Converts the type reference to an [`Arg`].
+    ///
+    /// Must assign the value to a corresponding enum field.
+    /// Should be `#[inline]` for hot loop optimization.
     fn to_arg(self) -> Arg<'a>;
 }
 
 impl<'a> ToArg<'a> for &'a &str {
     #[inline]
     fn to_arg(self) -> Arg<'a> {
-        Arg {
-            value: ArgValue { string: self },
-            kind: ArgKind::String,
-        }
+        Arg::String(self)
     }
 }
 
 impl<'a> ToArg<'a> for &'a String {
     #[inline]
     fn to_arg(self) -> Arg<'a> {
-        Arg {
-            value: ArgValue { string: self },
-            kind: ArgKind::String,
-        }
+        Arg::String(self)
     }
 }
 
@@ -510,12 +515,9 @@ macro_rules! impl_to_arg {
     ($($ty:ty => $field:ident, $kind:ident, $cast:ty),* $(,)?) => {
         $(
             impl<'a> ToArg<'a> for &'a $ty {
-                #[inline(always)]
+                #[inline]
                 fn to_arg(self) -> Arg<'a> {
-                    Arg {
-                        value: ArgValue { $field: *self as $cast },
-                        kind: ArgKind::$kind,
-                    }
+                    Arg::$kind(*self as $cast)
                 }
             }
         )*
@@ -540,13 +542,8 @@ impl_to_arg!(
 );
 
 /// Used by the [`t!`] proc-macro to convert a
-/// compatible input to [`Arg`].
-///
-/// Types that implement [`ToArg`] «out of the box»:
-/// [`u8`], [`u16`], [`u32`], [`u64`], [`usize`],
-/// [`i8`], [`i16`], [`i32`], [`i64`], [`isize`],
-/// [`f32`], [`f64`],
-/// [`String`], &[`str`]
+/// compatible input to an [`Arg`].
+#[inline]
 pub fn __arg<'a, T: ?Sized>(value: &'a T) -> Arg<'a>
 where
     &'a T: ToArg<'a>,
