@@ -1,20 +1,34 @@
 # ezlz
 A compact internationalization crate optimized for hot loops.
+##
+
 
 ## Overview
-The goal is to support all natural languages while keeping
-the crate simple and fast enough for use in web templates 
-and UIs that render in hot loops where full CLDR functionality is not required.
-If need extensive and complex formatting, consider
-some other crates such as [icu](https://crates.io/crates/icu).
+The goal is to support all natural languages while keeping the crate
+simple and fast enough for use in web templates and UIs that render
+in hot loops and where the full [CLDR](https://cldr.unicode.org)
+functionality is not required.
 
 ### Features
  - **Fast**: Translations are compiled at runtime and can be rendered over 10 million times per second for simple templates.
  - **Simple**: The basic API is just a single function and a macro.
  - **Pluralization**: Plural rules are compiled from placeholder syntax.
+##
 
 
 ## Quick start
+
+### Installation
+Add with Cargo:
+```bash
+cargo add ezlz
+```
+Or manually to `Cargo.toml`:
+```toml
+[dependencies]
+ezlz = "1"
+```
+### Setup
 Create a directory for your locales and YAML files containing the translations.
 For example:
 ```text
@@ -103,18 +117,7 @@ t!("cn", foo.bar);
 // Panic: Translation 'nonexistent.key' not found for locale 'en' and fallback locale 'en'.
 t!("en", nonexistent.key);
 ```
-
-
-## Installation
-Add with Cargo:
-```bash
-cargo add ezlz
-```
-Or manually to `Cargo.toml`:
-```toml
-[dependencies]
-ezlz = "1"
-```
+##
 
 
 ## The `t!` macro
@@ -158,6 +161,7 @@ t!("en", foo, count = some_expression());
 Expressions must be explicitly named. You can pass multiple different arguments.
 If a template has multiple placeholders with the same name, they will all take 
 the supplied value, so you don't need to repeat the argument for each placeholder.
+##
 
 
 ## Placeholders
@@ -240,6 +244,7 @@ ro: "{i|=0: vulpi|=1: vulpe|#1-19: vulpi| de vulpi}"
 ru: "{i|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"
 ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
 ```
+##
 
 
 ## How it works
@@ -274,15 +279,16 @@ translation mapping, [`itoa`](https://crates.io/crates/itoa) and
 [`zmij`](https://crates.io/crates/zmij) for number-to-string conversion, this makes 
 translation lookup and placeholder rendering fast enough for use in
 hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
+##
 
 
 ## Benchmarks
 
 Benchmarks were run with Criterion harness using:
 
-* Environment: Termux 0.118.3
+* Environment: [Termux](https://github.com/termux/termux-app) 0.118.3
 * OS: Android 14
-* CPU: MediaTek Dimensity 8050
+* CPU: [MediaTek Dimensity 8050](https://www.mediatek.com/products/smartphones/mediatek-dimensity-8050)
 
 
 Results:
@@ -309,6 +315,8 @@ Clone the repository and run:
 cargo bench
 ```
 For development, the benchmark source is in `benches/benchmarks.rs`.
+##
+
 
 ## License
 
