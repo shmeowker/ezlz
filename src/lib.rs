@@ -40,8 +40,8 @@ pub enum Error {
     },
     /// YAML syntax errors.
     ///
-    /// Occurs if a file has broken indentation
-    /// or is not a valid YAML.
+    /// Occurs if a file has invalid indentation
+    /// or is not valid YAML.
     ParseYaml {
         path: PathBuf,
         source: serde_yaml::Error,
@@ -102,9 +102,9 @@ impl Display for Error {
 
 impl StdError for Error {}
 
-/// Initialize from a localization `directory`. The `fallback`
-/// locale is used if some translation is unavailable by requested
-/// locale key. May return an [`Error`].
+/// Initializes the localization store from a `directory`. The `fallback`
+/// locale is used if some translation is unavailable in the requested locale.
+/// May return an [`Error`].
 ///
 /// ```rust ignore
 /// use ezlz::t;
@@ -198,8 +198,8 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
     Ok(())
 }
 
-/// Flatten YAML mappings into dotted translation keys and compile
-/// each translation into AHashMap.
+/// Recursively flattens YAML mappings into dotted translation keys and compiles
+/// each translation into a [`Template`], storing it in [`AHashMap`].
 fn flatten_yaml(
     path: &Path,
     value: &Value,
@@ -287,7 +287,7 @@ impl Part {
         fn str_from_bytes(bytes: &[u8]) -> &str {
             unsafe { str::from_utf8_unchecked(bytes) }
         }
-        /// Checks if byte at index `i` has odd amount of `\` before it.
+        /// Checks if byte at index `i` has odd number of `\` before it.
         fn is_escaped(bytes: &[u8], i: usize) -> bool {
             let mut backslashes = 0;
             for b in bytes[..i].iter().rev() {
@@ -340,7 +340,7 @@ struct Template {
     /// Estimated size of a rendered template.
     ///
     /// Calculated in [`Template::compile`].
-    /// Used as size of string buffer in [`Template::render`].
+    /// Used as the size of the string buffer in [`Template::render`].
     bufsize: usize,
 }
 
@@ -350,8 +350,8 @@ impl Template {
     /// Parse a translation string and compile its segments
     /// to a list of [`Part`]s.
     ///
-    /// Calculates the approximate size of rendered self by
-    /// adding the total size of text parts to amount of placeholders
+    /// Calculates the approximate size of the rendered template by
+    /// adding the total size of text parts to number of placeholders
     /// multiplied by [`Template::ESTIMATED_ARG_LEN`].
     fn compile(translation: &str) -> Result<Self, String> {
         let mut parts = Vec::new();
@@ -423,9 +423,7 @@ impl Template {
     }
 }
 
-/// Checks if a string is ASCII alphanumeric.
-///
-/// Used to validate placeholder names.
+/// Checks if a string slice is a valid placeholder identifier.
 fn is_identifier(s: &str) -> bool {
     let mut chars = s.chars();
     chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
@@ -452,7 +450,7 @@ impl<'a> Arg<'a> {
     fn is_numeric(&self) -> bool {
         !matches!(self, Self::String(..))
     }
-    /// Returns the truncated absolute value a numeric argument.
+    /// Returns the truncated absolute value of a numeric argument.
     #[inline]
     fn abs_trunc(&self) -> u64 {
         unsafe {
@@ -500,7 +498,7 @@ impl<'a> Arg<'a> {
 
 /// Trait for types whose references can be converted to an [`Arg`].
 ///
-/// Preimplemented for
+/// Implemented for
 /// [`u8`], [`u16`], [`u32`], [`u64`], [`usize`],
 /// [`i8`], [`i16`], [`i32`], [`i64`], [`isize`],
 /// [`f32`], [`f64`],
@@ -509,7 +507,7 @@ pub trait ToArg<'a> {
     /// Converts the type reference to an [`Arg`].
     ///
     /// Must convert the referenced value to the corresponding [`Arg`] variant.
-    /// Should be marked `#[inline]` for hot loop optimization.
+    /// Should be marked `#[inline]` for optimization in hot loops.
     fn to_arg(self) -> Arg<'a>;
 }
 
@@ -570,7 +568,7 @@ where
 /// Generated in place of the [`t!`] proc-macro.
 ///
 /// Panics if [`init`] has not been called or if a translation
-/// cannot be found in the requested and fallback locale.
+/// cannot be found in the requested locale or the fallback locale.
 pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
     let translations = TRANSLATIONS
         .get()

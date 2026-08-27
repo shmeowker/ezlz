@@ -1,15 +1,34 @@
+//! This module handles the parsing, compilation and rendering
+//! of plural placeholders.
 use crate::{Arg, is_identifier};
 
+/// A plural rule.
 #[derive(Debug)]
 struct Rule {
+    /// The selector operator.
+    ///
+    /// Can be `.`, `=`, `~`, `%`, or `#`.
+    /// Other values trigger fallback.
     op: u8,
+    /// Lower range bound of the selector.
     lo: u8,
+    /// Upper range bound of the selector.
     hi: u8,
+    /// The text value of the rule.
     text: Box<str>,
+    /// Replacement flag.
+    ///
+    /// Indicates that this rule is supposed to replace the
+    /// number instead of appending to it.
     replace: bool,
 }
 
 impl Rule {
+    /// Matches the rule against the absolute truncated integer
+    /// numeric value of an [`Arg`] according to the value of
+    /// [`Rule::op`].
+    ///
+    /// See the Pluralization section of README.md for details.
     fn matches(&self, n: &Arg) -> bool {
         let i = n.abs_trunc();
         let x = match self.op {
@@ -22,7 +41,7 @@ impl Rule {
         if n.is_float() && self.op != b'~' {
             return false;
         }
-        if self.hi == 0xff {
+        if self.hi == u8::MAX {
             self.lo as u64 <= x
         } else {
             self.lo as u64 <= x && x <= self.hi as u64
@@ -30,17 +49,24 @@ impl Rule {
     }
 }
 
+/// The plural rules of a plural placeholder.
 #[derive(Debug)]
 pub struct Ruleset {
+    /// The list of compiled [`Rule`]s.
     rules: Box<[Rule]>,
 }
 
 impl Ruleset {
+    /// Returns the first [`Rule`] that matches a number.
     #[inline]
     fn select(&self, n: &Arg) -> Option<&Rule> {
         self.rules.iter().find(|r| r.matches(n))
     }
 
+    /// Renders a [`Rule`] matching the value of an [`Arg`].
+    ///
+    /// The rendered strings are written directly to the `output` buffer.
+    /// If the provided [`Arg`] is not numeric, writes it as is and aborts.
     pub fn render(&self, output: &mut String, arg: &Arg<'_>) {
         if !arg.is_numeric() {
             arg.write_to(&mut *output);
@@ -62,18 +88,22 @@ impl Ruleset {
     }
 }
 
+/// Parses a plural rule selector.
+///
+/// Returns 3 values corresponding to
+/// [`Rule::op`], [`Rule::lo`] and [`Rule::hi`].
 fn selector(s: &str) -> (u8, u8, u8) {
     if s.is_empty() {
-        return (0xff, 0xff, 0xff);
+        return (u8::MAX, u8::MAX, u8::MAX);
     }
     if s == "." {
-        return (b'.', 0xff, 0xff);
+        return (b'.', u8::MAX, u8::MAX);
     }
 
     let b = s.as_bytes();
     let (op, range) = unsafe { (b[0], str::from_utf8_unchecked(&b[1..])) };
     if let Some(lo) = range.strip_suffix('+') {
-        return (op, lo.parse().unwrap(), 0xff);
+        return (op, lo.parse().unwrap(), u8::MAX);
     }
     if let Some((lo, hi)) = range.split_once('-') {
         return (op, lo.parse().unwrap(), hi.parse().unwrap());
@@ -83,6 +113,11 @@ fn selector(s: &str) -> (u8, u8, u8) {
     (op, n, n)
 }
 
+/// Compiles a plural placeholder from a string slice containing its body.
+///
+/// On success, returns the identifier and a compiled [`Ruleset`].
+/// Returns [`None`] if the provided string slice doesn't contain
+/// a valid plural placeholder body.
 pub fn compile(input: &str) -> Option<(Box<str>, Ruleset)> {
     let mut parts = input.split('|');
 
