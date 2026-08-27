@@ -98,10 +98,6 @@ foo:
 ```
 can be referenced as:
 ```rust no_run
-<!--
-#use ezlz::t;
-#let lang = "";
--->
 t!(lang, foo.bar.baz);
 t!(lang, foo.bar.qux);
 ```
@@ -115,9 +111,6 @@ If a requested locale does not contain a translation,
 ezlz tries to find it in the fallback locale and **panics
 if the translation is not found there either**.
 ```rust no_run
-<!--
-#use ezlz::t;
--->
 // Falls back to 'en'
 t!("jp", foo.bar);
 // Panic: Translation 'nonexistent.key' not found for locale 'en' and fallback locale 'en'.
@@ -134,9 +127,6 @@ t!(<locale>, <key>[, arguments...])
 ### Locale
 The `locale` can be any Rust expression whose value can be converted to `Box<str>`.
 ```rust no_run
-<!--
-#use ezlz::t;
--->
 t!("en", foo.bar);
 t!(current_locale(), foo.bar.baz);
 ```
