@@ -52,7 +52,7 @@ messages:
   hello: "Привет, {name}!"
   items: "У тебя {n|.: предмета|#11-14: предметов|%1: предмет|%2-4: предмета| предметов}."
 ```
-```rust no_run
+```rust ignore
 use ezlz::t;
 
 fn main() {
@@ -84,7 +84,7 @@ Each `.yml` or `.yaml` file in the locales directory contains
 translations for one language.
 The filename without the extension is the locale name.
 You must initialize ezlz with a fallback locale:
-```rust no_run
+```rust ignore
 ezlz::init("en", "locales").unwrap();
 ```
 
@@ -97,7 +97,7 @@ foo:
     qux: "grault"
 ```
 can be referenced as:
-```rust no_run
+```rust ignore
 t!(lang, foo.bar.baz);
 t!(lang, foo.bar.qux);
 ```
@@ -110,7 +110,7 @@ placeholders and stored in memory as a compiled `Template` object.
 If a requested locale does not contain a translation, 
 ezlz tries to find it in the fallback locale and **panics
 if the translation is not found there either**.
-```rust no_run
+```rust ignore
 // Falls back to 'en'
 t!("jp", foo.bar);
 // Panic: Translation 'nonexistent.key' not found for locale 'en' and fallback locale 'en'.
@@ -126,14 +126,14 @@ t!(<locale>, <key>[, arguments...])
 
 ### Locale
 The `locale` can be any Rust expression whose value can be converted to `Box<str>`.
-```rust no_run
+```rust ignore
 t!("en", foo.bar);
 t!(current_locale(), foo.bar.baz);
 ```
 
 ### Translation key
 A translation `key` is basically the YAML path separated by dots:
-```rust no_run
+```rust ignore
 t!("en", menu.login);
 t!("en", store.cart.total);
 ```
@@ -142,7 +142,7 @@ t!("en", store.cart.total);
 All arguments are **named**, but you can pass a bare variable 
 whose name matches the placeholder name:
 
-```rust no_run
+```rust ignore
 let name = "Anna";
 let items = 5_u32;
 
@@ -150,7 +150,7 @@ t!("en", examples.stats, name, items);
 ```
 
 For an explicit placeholder name or expression:
-```rust no_run
+```rust ignore
 t!("en", foo, name = user_name);
 t!("en", foo, count = some_expression());
 ```
