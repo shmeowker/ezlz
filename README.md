@@ -5,8 +5,8 @@ A compact internationalization crate optimized for hot loops.
 The goal is to support all natural languages while keeping
 the crate simple and fast enough for use in web templates 
 and UIs that render in hot loops where full CLDR functionality is not required.
-If you actually need extensive and complex formatting, consider
-some other crates like [icu](https://crates.io/crates/icu).
+If need extensive and complex formatting, consider
+some other crates such as [icu](https://crates.io/crates/icu).
 
 ### Features
  - **Fast**: Translations are compiled at runtime and can be rendered over 10 million times per second for simple templates.
@@ -90,13 +90,13 @@ t!(lang, foo.bar.qux);
 ```
 
 
-Once `init` is called, each of the translated texts is parsed for 
+Once `init` is called, each translation is parsed for 
 placeholders and stored in memory as a compiled `Template` object.
 
 
 If a requested locale does not contain the translation, 
-ezlz tries to find it in the fallback locale, and **panics
-if the fallback locale doesn't have it**.
+ezlz tries to find it in the fallback locale and **panics
+if the translation is not found there either**.
 ```rust ignore
 // Falls back to 'en'
 t!("cn", foo.bar);
@@ -200,7 +200,7 @@ Matching rules are defined explicitly by the locale author.
 ```
 
 
-**Numeric values are matched using their absolute value, with the fractional part truncated.**
+**Numeric values are matched using their absolute integer value with the fractional part truncated.**
 This does not affect the rendered number. The `.` selector is the exception:
 it matches the original argument type and therefore distinguishes floating-point inputs.
 
