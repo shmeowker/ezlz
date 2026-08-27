@@ -284,7 +284,6 @@ hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
 
 
 ## Benchmarks
-
 Benchmarks were run with Criterion harness using:
 
 * Environment: [Termux](https://github.com/termux/termux-app) 0.118.3
@@ -309,9 +308,7 @@ Results:
 | `plural_ru<-float` | Russian float plural    |    125 ns |
 
 ### Running the benchmarks
-
 Clone the repository and run:
-
 ```bash
 cargo bench
 ```
