@@ -6,7 +6,7 @@ A compact internationalization crate optimized for hot loops.
 ## Overview
 The goal is to support all natural languages while keeping the crate
 simple and fast enough for use in web templates and UIs that render
-in hot loops and where the full [CLDR](https://cldr.unicode.org)
+in hot loops where the full [CLDR](https://cldr.unicode.org)
 functionality is not required.
 
 ### Features
@@ -28,6 +28,7 @@ Or manually to `Cargo.toml`:
 [dependencies]
 ezlz = "1"
 ```
+
 ### Setup
 Create a directory for your locales and YAML files containing the translations.
 For example:
@@ -108,7 +109,7 @@ Once `init` is called, each translation is parsed for
 placeholders and stored in memory as a compiled `Template` object.
 
 
-If a requested locale does not contain the translation, 
+If a requested locale does not contain a translation, 
 ezlz tries to find it in the fallback locale and **panics
 if the translation is not found there either**.
 ```rust ignore
@@ -176,7 +177,7 @@ items: "You have {items|=1: item| items}."
 Escaping:
 ```yaml
 escape: 'this is \{not a placeholder}'
-double: 'but this is a \\{placeholder} with a \ before it'
+double: 'but this is a \\{placeholder} with a backslash before it'
 ```
 You can have multiple placeholders in a template. 
 Placeholder names can repeat.
@@ -205,7 +206,7 @@ Matching rules are defined explicitly by the locale author.
 
 
 **Numeric values are matched using their absolute integer value with the fractional part truncated.**
-This does not affect the rendered number. The `.` selector is the exception:
+This does not affect the rendered number. The `.` selector is an exception:
 it matches the original argument type and therefore distinguishes floating-point inputs.
 
 
@@ -223,7 +224,7 @@ Rules are evaluated from left to right. The first matching rule is selected.
 
 
 Rules can use `+` for an open-ended range.
-Here, N is input.abs().trunc() as u64, as mentioned above.
+Here, `N` is an absolute truncated integer value, as mentioned above.
 ```text
 %1+   modulo 10 of N is 1 or greater
 #11+  modulo 100 of N is 11 or greater
