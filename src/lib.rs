@@ -59,30 +59,43 @@ pub enum Error {
         key: String,
         message: String,
     },
+    /// Occurs if [`init`] is called after a successful initialization.
+    AlreadyInitialized,
+    /// Occurs if the fallback locale can't found in locales directory.
+    FallbackLocaleNotFound { name: String, path: PathBuf },
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Io { path, source } => {
-                write!(f, "Failed to read {}: {source}", path.to_string_lossy())
+                write!(f, "failed to read {}: {source}", path.to_string_lossy())
             }
 
             Self::ParseYaml { path, source } => {
-                write!(f, "Failed to parse {}: {}", path.to_string_lossy(), source)
+                write!(f, "failed to parse {}: {}", path.to_string_lossy(), source)
             }
 
             Self::InvalidYaml { path, message } => {
-                write!(f, "Invalid YAML in {}: {message}.", path.to_string_lossy())
+                write!(f, "invalid YAML in {}: {message}", path.to_string_lossy())
             }
 
-            Self::InvalidTemplate { path, key, message } => {
-                write!(
-                    f,
-                    "Invalid template '{key}' in {}: {message}.",
-                    path.to_string_lossy()
-                )
-            }
+            Self::InvalidTemplate { path, key, message } => write!(
+                f,
+                "invalid template '{key}' in {}: {message}",
+                path.to_string_lossy()
+            ),
+
+            Self::AlreadyInitialized => write!(
+                f,
+                "ezlz::init() can't be called again after a successful initialization"
+            ),
+
+            Self::FallbackLocaleNotFound { name, path } => write!(
+                f,
+                "fallback locale '{name}' not found in {}",
+                path.to_string_lossy()
+            ),
         }
     }
 }
@@ -164,19 +177,22 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
     }
 
     TRANSLATIONS
-        .set(Translations { fallback, locales })
-        .map_err(|_| Error::InvalidYaml {
-            path: directory.to_path_buf(),
-            message: "ezlz::init() can't called more than once.".to_owned(),
-        })?;
+        .set(Translations {
+            fallback: fallback.clone(),
+            locales,
+        })
+        .map_err(|_| Error::AlreadyInitialized)?;
 
     if TRANSLATIONS
         .get()
-        .map(|t| t.locales.get(&t.fallback))
+        .map(|t| t.locales.get(&fallback))
         .unwrap()
         .is_none()
     {
-        panic!("Fallback locale not found.");
+        return Err(Error::FallbackLocaleNotFound {
+            name: fallback.to_string(),
+            path: directory.to_path_buf(),
+        });
     }
 
     Ok(())
@@ -196,7 +212,7 @@ fn flatten_yaml(
                 let Some(key) = key.as_str() else {
                     return Err(Error::InvalidYaml {
                         path: path.to_path_buf(),
-                        message: "Template keys must be strings".to_owned(),
+                        message: "template keys must be strings".to_owned(),
                     });
                 };
 
@@ -228,7 +244,7 @@ fn flatten_yaml(
         _ => {
             return Err(Error::InvalidYaml {
                 path: path.to_path_buf(),
-                message: format!("Template value must be a string, got {value:?}"),
+                message: format!("template value must be a string, got {value:?}"),
             });
         }
     }
@@ -261,7 +277,7 @@ impl Part {
         if let Some((name, rules)) = plural::compile(source) {
             return Ok(Self::Plural { name, rules });
         }
-        Err("Unable to parse placeholder".to_string())
+        Err("unable to parse placeholder".to_string())
     }
 
     /// Parse the first valid [`Part`] from a string slice and
@@ -292,7 +308,7 @@ impl Part {
                 b'{' if !is_escaped(bytes, i) => {
                     if text.is_empty() {
                         let Some(end) = source[i + 1..].find('}').map(|r_end| i + 1 + r_end) else {
-                            return Err("Unclosed placeholder".to_string());
+                            return Err("unclosed placeholder".to_string());
                         };
                         let body = str_from_bytes(&bytes[i + 1..end]);
                         let part = Self::parse_placeholder(body)?;
@@ -573,6 +589,6 @@ pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
 
     match template {
         Some(translation) => translation.render(args),
-        None => panic!("Translation '{key}' not found in locale '{locale}' and fallback locale."),
+        None => panic!("translation '{key}' not found in locale '{locale}' and fallback locale"),
     }
 }

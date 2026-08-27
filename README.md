@@ -253,8 +253,9 @@ ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
    placeholders. Plural placeholders are compiled into `Ruleset`s.
 3. Store the compiled templates in an `AHashMap` for each locale and
    store all locales together with the fallback locale in `Translations`.
-4. Store `Translations` in a global `OnceLock`. `init` can only be called once,
-   and it panics if the configured fallback locale does not exist.
+4. Store `Translations` in a global `OnceLock`. `init` can only
+   complete once, and it returns an error if called again or if the configured
+   fallback locale does not exist.
 
 ### Runtime lookup
 1. `t!` expands to a call that passes the locale, hardcoded translation key,
