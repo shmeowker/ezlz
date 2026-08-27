@@ -287,7 +287,7 @@ impl Part {
         fn str_from_bytes(bytes: &[u8]) -> &str {
             unsafe { str::from_utf8_unchecked(bytes) }
         }
-        /// Checks if byte at index `i` has odd number of `\` before it.
+        /// Checks if the byte at index `i` has an odd number of `\` bytes before it.
         fn is_escaped(bytes: &[u8], i: usize) -> bool {
             let mut backslashes = 0;
             for b in bytes[..i].iter().rev() {
@@ -345,13 +345,13 @@ struct Template {
 }
 
 impl Template {
-    /// Approximate maximal size of a rendered placeholder.
+    /// Estimated size of a placeholder's rendered value.
     const ESTIMATED_ARG_LEN: usize = 32;
     /// Parse a translation string and compile its segments
     /// to a list of [`Part`]s.
     ///
     /// Calculates the approximate size of the rendered template by
-    /// adding the total size of text parts to number of placeholders
+    /// adding the total size of text parts to the number of placeholders
     /// multiplied by [`Template::ESTIMATED_ARG_LEN`].
     fn compile(translation: &str) -> Result<Self, String> {
         let mut parts = Vec::new();
@@ -445,7 +445,7 @@ pub enum Arg<'a> {
 }
 
 impl<'a> Arg<'a> {
-    /// Checks if self is an [`Arg::String`].
+    /// Checks if self is not an [`Arg::String`].
     #[inline]
     fn is_numeric(&self) -> bool {
         !matches!(self, Self::String(..))

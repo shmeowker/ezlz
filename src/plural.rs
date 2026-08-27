@@ -8,7 +8,7 @@ struct Rule {
     /// The selector operator.
     ///
     /// Can be `.`, `=`, `~`, `%`, or `#`.
-    /// Other values trigger fallback.
+    /// Other values trigger the fallback.
     op: u8,
     /// Lower range bound of the selector.
     lo: u8,
