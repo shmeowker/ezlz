@@ -51,7 +51,7 @@ impl Rule {
 
 /// The plural rules of a plural placeholder.
 #[derive(Debug)]
-pub struct Ruleset {
+pub(crate) struct Ruleset {
     /// The list of compiled [`Rule`]s.
     rules: Box<[Rule]>,
 }
@@ -118,7 +118,7 @@ fn selector(s: &str) -> (u8, u8, u8) {
 /// On success, returns the identifier and a compiled [`Ruleset`].
 /// Returns [`None`] if the provided string slice doesn't contain
 /// a valid plural placeholder body.
-pub fn compile(input: &str) -> Option<(Box<str>, Ruleset)> {
+pub(crate) fn compile(input: &str) -> Option<(Box<str>, Ruleset)> {
     let mut parts = input.split('|');
 
     let name = parts.next()?;
