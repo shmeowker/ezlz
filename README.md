@@ -186,7 +186,7 @@ You can pass the following types into the placeholders:
 - Text: `String`, `&str`
 
 Or any custom type that implements `ezlz::ToArg` trait.
-Check out [docs.rs](https://docs.rs/ezlz) or source code for reference.
+Check out [docs.rs](https://docs.rs/ezlz/latest/trait.ToArg.html) or source code for reference.
 
 ### Pluralization
 A plural placeholder has an identifier and a set of rules that are
