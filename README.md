@@ -3,7 +3,7 @@ A compact internationalization crate optimized for hot loops.
 
 ## Overview
 The goal is to support all natural languages while keeping
-the crate simple and fast enogh for use in web templates 
+the crate simple and fast enough for use in web templates 
 and UIs that render in hot loops where full CLDR functionality is not required.
 If you actually need extensive and complex formatting, consider
 some other crates like [icu](https://crates.io/crates/icu).
@@ -188,8 +188,8 @@ Or any custom type that implements `ezlz::ToArg` trait.
 Check out [docs.rs](https://docs.rs/ezlz) or source code for reference.
 
 ### Pluralization
-A plural placeholder has an identifier and a set of rules, which are
-compiled at runtime. If rule text starts with `=`, the rendered number
+A plural placeholder has an identifier and a set of rules that are
+compiled during initialization. If rule text starts with `=`, the rendered number
 is replaced instead of prepended.
 
 The rule syntax is designed to be capable of implementing
@@ -253,8 +253,8 @@ ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
    placeholders. Plural placeholders are compiled into `Ruleset`s.
 3. Store the compiled templates in an `AHashMap` for each locale and
    store all locales together with the fallback locale in `Translations`.
-4. Store `Translations` in a global `OnceLock`. `init` can only
-   complete once, and it returns an error if called again or if the configured
+4. Store `Translations` in a global `OnceLock`. `init` can only be called
+   successfully once, and will return an error if called again or if the configured
    fallback locale does not exist.
 
 ### Runtime lookup
@@ -272,7 +272,7 @@ This keeps YAML parsing, template compilation, and plural rule compilation out o
 the rendering path. Combined with [`ahash`](https://crates.io/crates/ahash) for
 translation mapping, [`itoa`](https://crates.io/crates/itoa) and 
 [`zmij`](https://crates.io/crates/zmij) for number-to-string conversion, this makes 
-translation lookup and placeholder rendering fast enough for running in
+translation lookup and placeholder rendering fast enough for use in
 hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
 
 
