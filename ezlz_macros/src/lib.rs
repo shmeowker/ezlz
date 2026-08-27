@@ -6,7 +6,9 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,
 };
+
 extern crate self as ezlz;
+
 
 struct Translation {
     locale: Expr,
@@ -116,17 +118,22 @@ impl Parse for Translation {
     }
 }
 
-/// Usage: t!(\<`locale`: Into\<Box\<str>>>, \<yaml\[.key]...>\[, `arg`: ezlz::ToArg |, `arg` = expr(): ezlz::ToArg]...)
-///
+/// Generates a translation getter with provided parameters.
+/// 
+/// Usage:
+/// ```rust no_run
+/// t!(<locale>, <key>[, arguments...]);
+/// ```
+/// 
 /// Examples:
-/// ```rust ignore
+/// ```rust no_run
 /// t!("ex", foo.corge);
 /// t!(lang, foo.bar.baz, qux);
 /// t!(get_lang(), foo.pets, birds = birds(), cats, dogs = 0);
 /// // Check out tests/locales/test.yml or README.md
 /// // for plural placeholder examples
-/// benches = t!("test", test.ru, i = 4);
-/// assert_eq!(benches, "4 стола");
+/// tables = t!("test", test.ru, i = 4);
+/// assert_eq!(tables, "4 стола");
 /// ```
 #[proc_macro]
 pub fn t(input: TokenStream) -> TokenStream {

@@ -106,7 +106,7 @@ impl StdError for Error {}
 /// locale is used if some translation is unavailable in the requested locale.
 /// May return an [`Error`].
 ///
-/// ```rust ignore
+/// ```rust no_run
 /// use ezlz::t;
 ///
 /// // Will search "locales" for translation files

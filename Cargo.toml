@@ -14,7 +14,7 @@ harness = false
 
 [package]
 name = "ezlz"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2024"
 description = "A compact i18n crate optimized for hot loops."
 license = "MIT"
@@ -28,7 +28,7 @@ rustdoc-args = ["--document-private-items"]
 
 [dependencies]
 ahash = "0.8.12"
-ezlz-macros = { path = "ezlz_macros", version = "0.2.1" }
+ezlz-macros = { path = "ezlz_macros", version = "0.2.2" }
 itoa = "1.0.18"
 serde_yaml = "0.9"
 zmij = { version = "1.0.23" }
