@@ -1,6 +1,5 @@
 # ezlz
 A compact internationalization crate optimized for hot loops.
-##
 
 
 ## Overview
@@ -13,7 +12,6 @@ functionality is not required.
  - **Fast**: Translations are compiled at runtime and can be rendered over 10 million times per second for simple templates.
  - **Simple**: The basic API is just a single function and a macro.
  - **Pluralization**: Plural rules are compiled from placeholder syntax.
-##
 
 
 ## Quick start
@@ -118,7 +116,6 @@ t!("cn", foo.bar);
 // Panic: Translation 'nonexistent.key' not found for locale 'en' and fallback locale 'en'.
 t!("en", nonexistent.key);
 ```
-##
 
 
 ## The `t!` macro
@@ -162,7 +159,6 @@ t!("en", foo, count = some_expression());
 Expressions must be explicitly named. You can pass multiple different arguments.
 If a template has multiple placeholders with the same name, they will all take 
 the supplied value, so you don't need to repeat the argument for each placeholder.
-##
 
 
 ## Placeholders
@@ -206,8 +202,8 @@ Matching rules are defined explicitly by the locale author.
 
 
 **Numeric values are matched using their absolute integer value with the fractional part truncated.**
-This does not affect the rendered number. The `.` selector is an exception:
-it matches the original argument type and therefore distinguishes floating-point inputs.
+This does not affect the rendered number. The `.` matches the original argument type and therefore
+distinguishes floating-point inputs.
 
 
 Rules are evaluated from left to right. The first matching rule is selected.
@@ -245,7 +241,6 @@ ro: "{i|=0: vulpi|=1: vulpe|#1-19: vulpi| de vulpi}"
 ru: "{i|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"
 ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
 ```
-##
 
 
 ## How it works
@@ -280,7 +275,6 @@ translation mapping, [`itoa`](https://crates.io/crates/itoa) and
 [`zmij`](https://crates.io/crates/zmij) for number-to-string conversion, this makes 
 translation lookup and placeholder rendering fast enough for use in
 hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
-##
 
 
 ## Benchmarks
@@ -313,7 +307,6 @@ Clone the repository and run:
 cargo bench
 ```
 For development, the benchmark source is in `benches/benchmarks.rs`.
-##
 
 
 ## License

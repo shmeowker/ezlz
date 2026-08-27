@@ -14,7 +14,7 @@ harness = false
 
 [package]
 name = "ezlz"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2024"
 description = "A compact i18n crate optimized for hot loops."
 license = "MIT"
@@ -23,6 +23,8 @@ readme = "README.md"
 keywords = ["i18n", "l10n", "pluralization", "localization"]
 categories = ["localization", "internationalization"]
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--document-private-items"]
 
 [dependencies]
 ahash = "0.8.12"
