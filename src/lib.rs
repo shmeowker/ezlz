@@ -348,7 +348,7 @@ impl Template {
     /// Estimated size of a placeholder's rendered value.
     const ESTIMATED_ARG_LEN: usize = 32;
     /// Parse a translation string and compile its segments
-    /// to a list of [`Part`]s.
+    /// into a list of [`Part`]s.
     ///
     /// Calculates the approximate size of the rendered template by
     /// adding the total size of text parts to the number of placeholders
@@ -445,7 +445,7 @@ pub enum Arg<'a> {
 }
 
 impl<'a> Arg<'a> {
-    /// Checks if self is not an [`Arg::String`].
+    /// Checks if `self` is a numeric argument.
     #[inline]
     fn is_numeric(&self) -> bool {
         !matches!(self, Self::String(..))
@@ -464,33 +464,33 @@ impl<'a> Arg<'a> {
             }
         }
     }
-    /// Checks if self is an [`Arg::Float`].
+    /// Checks if `self` is an [`Arg::Float`].
     #[inline]
     fn is_float(&self) -> bool {
         matches!(self, Self::Float(..))
     }
-    /// Writes the value to the `out` buffer
+    /// Writes the value to the `output` buffer
     /// using the method corresponding to its variant.
     #[inline]
-    fn write_to(&self, out: &mut String) {
+    fn write_to(&self, output: &mut String) {
         match self {
             Self::Int(value) => {
                 let mut buf = itoa::Buffer::new();
                 let n = buf.format(*value);
-                out.push_str(n);
+                output.push_str(n);
             }
             Self::Uint(value) => {
                 let mut buf = itoa::Buffer::new();
                 let n = buf.format(*value);
-                out.push_str(n);
+                output.push_str(n);
             }
             Self::Float(value) => {
                 let mut buf = zmij::Buffer::new();
                 let n = buf.format(*value);
-                out.push_str(n);
+                output.push_str(n);
             }
             Self::String(value) => {
-                out.push_str(value);
+                output.push_str(value);
             }
         }
     }
