@@ -10,8 +10,7 @@ in hot loops where the full [CLDR](https://cldr.unicode.org)
 functionality is not required.
 
 ### Features
- - **Fast**: Translation templates are compiled at runtime and
-   can be rendered over 10 million times per second for simple templates.
+ - **Fast**: Translations are compiled at runtime and can be rendered over 10 million times per second for simple templates.
  - **Simple**: The basic API is just a single function and a macro.
  - **Pluralization**: Plural rules are compiled from placeholder syntax.
 ##
