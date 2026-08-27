@@ -19,7 +19,7 @@ pub use ezlz_macros::t;
 /// `init()` populates this exactly once.
 static TRANSLATIONS: OnceLock<Translations> = OnceLock::new();
 
-/// Stores all compiled [`Template`]s for all the locales among
+/// Stores all compiled [`Template`]s for all locales along
 /// with the name of the fallback locale.
 #[derive(Debug)]
 struct Translations {
@@ -40,8 +40,8 @@ pub enum Error {
     },
     /// YAML syntax errors.
     ///
-    /// Occurs if a file has broken identation
-    /// or is not a correctly formatted YAML.
+    /// Occurs if a file has broken indentation
+    /// or is not a valid YAML.
     ParseYaml {
         path: PathBuf,
         source: serde_yaml::Error,
@@ -107,7 +107,7 @@ impl StdError for Error {}
 /// t!("en", messages.hello);
 /// t!("en_GB", messages.greet, name = "Anna");
 /// // If the variable name matches placeholder name,
-/// // using explicit placeholder names is unneccesary:
+/// // using explicit placeholder names is unnecessary:
 /// let name = "Anna";
 /// t!(get_lang(), messages.greet, name);
 /// ```
@@ -265,7 +265,7 @@ impl Part {
     }
 
     /// Parse the first valid [`Part`] from a string slice and
-    /// return it among with the rest of that string slice.
+    /// return it along with the rest of that string slice.
     fn parse_next(source: &str) -> Result<(Self, &str), String> {
         /// Converts a slice of bytes to a string slice.
         fn str_from_bytes(bytes: &[u8]) -> &str {
@@ -321,22 +321,22 @@ impl Part {
 struct Template {
     /// List of the compiled template parts.
     parts: Box<[Part]>,
-    /// Approximate size of a rendered template.
+    /// Estimated size of a rendered template.
     ///
-    /// Calulated in [`Template::compile`].
+    /// Calculated in [`Template::compile`].
     /// Used as size of string buffer in [`Template::render`].
     bufsize: usize,
 }
 
 impl Template {
-    /// Approximate size of a rendered placeholder.
-    const APPROX_ARG_LEN: usize = 32;
+    /// Approximate maximal size of a rendered placeholder.
+    const ESTIMATED_ARG_LEN: usize = 32;
     /// Parse a translation string and compile its segments
     /// to a list of [`Part`]s.
     ///
     /// Calculates the approximate size of rendered self by
     /// adding the total size of text parts to amount of placeholders
-    /// multiplied by [`Template::APPROX_ARG_LEN`].
+    /// multiplied by [`Template::ESTIMATED_ARG_LEN`].
     fn compile(translation: &str) -> Result<Self, String> {
         let mut parts = Vec::new();
         let mut source = translation;
@@ -348,10 +348,10 @@ impl Template {
                     match &part {
                         Part::Text(text) => bufsize += text.len(),
                         Part::Variable { name: _ } => {
-                            bufsize += Self::APPROX_ARG_LEN;
+                            bufsize += Self::ESTIMATED_ARG_LEN;
                         }
                         Part::Plural { name: _, rules: _ } => {
-                            bufsize += Self::APPROX_ARG_LEN;
+                            bufsize += Self::ESTIMATED_ARG_LEN;
                         }
                     }
                     (part, rest)
@@ -426,17 +426,17 @@ pub enum Arg<'a> {
     Uint(u64),
     /// Floating point numbers.
     Float(f64),
-    /// String types.
+    /// String values.
     String(&'a str),
 }
 
 impl<'a> Arg<'a> {
     /// Checks if self is an [`Arg::String`].
     #[inline]
-    fn is_numberic(&self) -> bool {
+    fn is_numeric(&self) -> bool {
         !matches!(self, Self::String(..))
     }
-    /// Returns truncated absolute value of numberic self.
+    /// Returns the truncated absolute value a numeric argument.
     #[inline]
     fn abs_trunc(&self) -> u64 {
         unsafe {
@@ -445,7 +445,7 @@ impl<'a> Arg<'a> {
                 Self::Uint(value) => *value,
                 Self::Float(value) => value.abs() as u64,
                 // Because this function is only called after making sure
-                // an arg is numberic, the string arm is not needed.
+                // an arg is numeric, the string arm is not needed.
                 Self::String(_) => std::hint::unreachable_unchecked(),
             }
         }
@@ -455,8 +455,8 @@ impl<'a> Arg<'a> {
     fn is_float(&self) -> bool {
         matches!(self, Self::Float(..))
     }
-    /// Writes the value of self to the `out` buffer using one
-    /// of the methods corresponding to the enum variant of self.
+    /// Writes the value to the `out` buffer
+    /// using the method corresponding to its variant.
     #[inline]
     fn write_to(&self, out: &mut String) {
         match self {
@@ -492,8 +492,8 @@ impl<'a> Arg<'a> {
 pub trait ToArg<'a> {
     /// Converts the type reference to an [`Arg`].
     ///
-    /// Must assign the value to a corresponding enum field.
-    /// Should be `#[inline]` for hot loop optimization.
+    /// Must convert the referenced value to the corresponding [`Arg`] variant.
+    /// Should be marked `#[inline]` for hot loop optimization.
     fn to_arg(self) -> Arg<'a>;
 }
 
@@ -525,17 +525,17 @@ macro_rules! impl_to_arg {
 }
 
 impl_to_arg!(
-    i8    => int,   Int, i64,
-    i16   => int,   Int, i64,
-    i32   => int,   Int, i64,
-    i64   => int,   Int, i64,
-    isize => int,   Int, i64,
+    i8    => int,   Int,   i64,
+    i16   => int,   Int,   i64,
+    i32   => int,   Int,   i64,
+    i64   => int,   Int,   i64,
+    isize => int,   Int,   i64,
 
-    u8    => uint,  Uint, u64,
-    u16   => uint,  Uint, u64,
-    u32   => uint,  Uint, u64,
-    u64   => uint,  Uint, u64,
-    usize => uint,  Uint, u64,
+    u8    => uint,  Uint,  u64,
+    u16   => uint,  Uint,  u64,
+    u32   => uint,  Uint,  u64,
+    u64   => uint,  Uint,  u64,
+    usize => uint,  Uint,  u64,
 
     f32   => float, Float, f64,
     f64   => float, Float, f64,
@@ -553,9 +553,8 @@ where
 
 /// Generated in place of the [`t!`] proc-macro.
 ///
-/// Panics if [`init`] has not been called
-/// or if a translation cannot be found in requested
-/// and fallback locale.
+/// Panics if [`init`] has not been called or if a translation
+/// cannot be found in the requested and fallback locale.
 pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
     let translations = TRANSLATIONS
         .get()

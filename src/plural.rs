@@ -42,8 +42,8 @@ impl Ruleset {
     }
 
     pub fn render(&self, output: &mut String, arg: &Arg<'_>) {
-        if !arg.is_numberic() {
-            panic!("Non-numberic Arg passed to plural placeholder.");
+        if !arg.is_numeric() {
+            panic!("Non-numeric Arg passed to plural placeholder.");
         }
 
         let Some(rule) = self.select(arg) else {

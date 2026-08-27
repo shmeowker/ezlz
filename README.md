@@ -2,14 +2,14 @@
 A compact internationalization crate optimized for hot loops.
 
 ## Overview
-The idea is to support all natural languages while keeping
-the crate simple and fast so it can be integrated into web templates 
-and UIs that run in hot loops where full CLDR functionality is not required.
+The goal is to support all natural languages while keeping
+the crate simple and fast enogh for use in web templates 
+and UIs that render in hot loops where full CLDR functionality is not required.
 If you actually need extensive and complex formatting, consider
 some other crates like [icu](https://crates.io/crates/icu).
 
 ### Features
- - **Fast**: Translations are compiled at runtime and can be rendered at over 10 million times per second for simple templates.
+ - **Fast**: Translations are compiled at runtime and can be rendered over 10 million times per second for simple templates.
  - **Simple**: The basic API is just a single function and a macro.
  - **Pluralization**: Plural rules are compiled from placeholder syntax.
 
@@ -68,7 +68,7 @@ fn current_locale() -> String {
 
 ### Translations
 Each `.yml` or `.yaml` file in the locales directory contains
-translated texts for one language.
+translations for one language.
 The filename without the extension is the locale name.
 You must initialize ezlz with a fallback locale:
 ```rust ignore
@@ -76,7 +76,7 @@ ezlz::init("en", "locales").unwrap();
 ```
 
 
-YAML key mappings become dotted translation keys, for example:
+YAML key mappings become dotted translation keys. For example:
 ```yaml
 foo:
   bar:
@@ -100,8 +100,8 @@ if the fallback locale doesn't have it**.
 ```rust ignore
 // Falls back to 'en'
 t!("cn", foo.bar);
-// Panic: Translation 'nonexistant.key' not found for locale 'en' and fallback locale 'en'.
-t!("en", nonexistant.key);
+// Panic: Translation 'nonexistent.key' not found for locale 'en' and fallback locale 'en'.
+t!("en", nonexistent.key);
 ```
 
 
@@ -139,7 +139,7 @@ t!("en", store.cart.total);
 
 ### Arguments
 All arguments are **named**, but you can pass a bare variable 
-which name matches the placeholder name:
+whose name matches the placeholder name:
 
 ```rust ignore
 let name = "Anna";
@@ -156,7 +156,7 @@ t!("en", foo, count = some_expression());
 
 
 Expressions must be explicitly named. You can pass multiple different arguments.
-If a template has multiple placeholders with same names, they will all take 
+If a template has multiple placeholders with the same name, they will all take 
 the supplied value, so you don't need to repeat the argument for each placeholder.
 
 
@@ -188,7 +188,7 @@ Or any custom type that implements `ezlz::ToArg` trait.
 Check out [docs.rs](https://docs.rs/ezlz) or source code for reference.
 
 ### Pluralization
-Plural placeholders have an identifier and a set of rules, which are
+A plural placeholder has an identifier and a set of rules, which are
 compiled at runtime. If rule text starts with `=`, the rendered number
 is replaced instead of prepended.
 
@@ -200,7 +200,7 @@ Matching rules are defined explicitly by the locale author.
 ```
 
 
-**Numeric values are matched using their absolute value with the fractional part truncated.**
+**Numeric values are matched using their absolute value, with the fractional part truncated.**
 This does not affect the rendered number. The `.` selector is the exception:
 it matches the original argument type and therefore distinguishes floating-point inputs.
 
@@ -246,7 +246,7 @@ ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
 
 ### Initialization
 1. Search the provided directory for `.yml` and `.yaml` files.
-   Each filename becomes a locale name.
+   The filename without its extension is used as the locale name.
 2. Parse each YAML file and recursively flatten its mappings into
    dotted translation keys. String values are compiled into `Template`
    objects containing `Part`s for text, regular placeholders, and plural
