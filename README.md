@@ -59,7 +59,7 @@ fn main() {
     ezlz::init("en", "locales").unwrap();
     
     let name = "Anna";
-    let n = 4u32;
+    let n = 4;
     
     assert_eq!(
         t!("en", messages.hello, name),
@@ -150,7 +150,7 @@ whose name matches the placeholder name:
 
 ```rust ignore
 let name = "Anna";
-let items = 5_u32;
+let items = 5;
 
 t!("en", examples.stats, name, items);
 ```

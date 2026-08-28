@@ -171,7 +171,7 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
 
         let mut translations = AHashMap::<Box<str>, Template>::new();
 
-        flatten_yaml(&path, &yaml, String::new(), &mut translations)?;
+        compile_translation(&path, &yaml, String::new(), &mut translations)?;
 
         locales.insert(Box::from(locale), translations);
     }
@@ -198,9 +198,10 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
     Ok(())
 }
 
-/// Recursively flattens YAML mappings into dotted translation keys and compiles
-/// each translation into a [`Template`], storing it in [`AHashMap`].
-fn flatten_yaml(
+/// Recursively flattens YAML mappings into dotted translation keys
+/// and compiles each translated value into a [`Template`],
+/// inserting each key-template pair into `output`.
+fn compile_translation(
     path: &Path,
     value: &Value,
     prefix: String,
@@ -222,7 +223,7 @@ fn flatten_yaml(
                     format!("{prefix}.{key}")
                 };
 
-                flatten_yaml(path, value, full_key, output)?;
+                compile_translation(path, value, full_key, output)?;
             }
         }
 
