@@ -116,6 +116,12 @@ t!("jp", foo.bar);
 // Panic: Translation 'nonexistent.key' not found for locale 'en' and fallback locale 'en'.
 t!("en", nonexistent.key);
 ```
+This behavior can be changed to returning the translation key instead
+by enabling the `missing-key-nopanic` feature.
+```toml
+# Cargo.toml
+ezlz = { version = "1", features = ["missing-key-nopanic"] }
+```
 
 
 ## The `t!` macro
