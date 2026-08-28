@@ -450,24 +450,22 @@ impl<'a> Arg<'a> {
     fn is_numeric(&self) -> bool {
         !matches!(self, Self::String(..))
     }
-    /// Returns the truncated absolute value of a numeric argument.
-    #[inline]
-    fn abs_trunc(&self) -> u64 {
-        unsafe {
-            match self {
-                Self::Int(value) => value.unsigned_abs(),
-                Self::Uint(value) => *value,
-                Self::Float(value) => value.abs() as u64,
-                // Because this function is only called after making sure
-                // an arg is numeric, the string arm is not needed.
-                Self::String(_) => std::hint::unreachable_unchecked(),
-            }
-        }
-    }
     /// Checks if `self` is an [`Arg::Float`].
     #[inline]
     fn is_float(&self) -> bool {
         matches!(self, Self::Float(..))
+    }
+    /// Returns the truncated absolute value of a numeric argument.
+    #[inline]
+    fn abs_trunc(&self) -> u64 {
+        match self {
+            Self::Int(value) => value.unsigned_abs(),
+            Self::Uint(value) => *value,
+            Self::Float(value) => value.abs() as u64,
+            // Because this function is only called after making sure
+            // an arg is numeric, the string arm is not needed.
+            Self::String(_) => unsafe { std::hint::unreachable_unchecked() },
+        }
     }
     /// Writes the value to the `output` buffer
     /// using the method corresponding to its variant.
@@ -588,6 +586,15 @@ pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
 
     match template {
         Some(translation) => translation.render(args),
-        None => panic!("translation '{key}' not found in locale '{locale}' and fallback locale"),
+        None => {
+            #[cfg(not(feature = "missing-key-nopanic"))]
+            {
+                panic!("translation '{key}' not found in locale '{locale}' and fallback locale")
+            }
+            #[cfg(feature = "missing-key-nopanic")]
+            {
+                return key.to_string();
+            }
+        }
     }
 }
