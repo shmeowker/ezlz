@@ -525,13 +525,14 @@ impl<'a> ToArg<'a> for &'a String {
     }
 }
 
+/// Blanket-implements [`ToArg`] on numeric types.
 macro_rules! impl_to_arg {
-    ($($ty:ty => $field:ident, $kind:ident, $cast:ty),* $(,)?) => {
+    ($($ty:ty => $field:ident, $cast:ty),* $(,)?) => {
         $(
             impl<'a> ToArg<'a> for &'a $ty {
                 #[inline]
                 fn to_arg(self) -> Arg<'a> {
-                    Arg::$kind(*self as $cast)
+                    Arg::$field(*self as $cast)
                 }
             }
         )*
@@ -539,20 +540,20 @@ macro_rules! impl_to_arg {
 }
 
 impl_to_arg!(
-    i8    => int,   Int,   i64,
-    i16   => int,   Int,   i64,
-    i32   => int,   Int,   i64,
-    i64   => int,   Int,   i64,
-    isize => int,   Int,   i64,
+    i8    => Int,   i64,
+    i16   => Int,   i64,
+    i32   => Int,   i64,
+    i64   => Int,   i64,
+    isize => Int,   i64,
 
-    u8    => uint,  Uint,  u64,
-    u16   => uint,  Uint,  u64,
-    u32   => uint,  Uint,  u64,
-    u64   => uint,  Uint,  u64,
-    usize => uint,  Uint,  u64,
+    u8    => Uint,  u64,
+    u16   => Uint,  u64,
+    u32   => Uint,  u64,
+    u64   => Uint,  u64,
+    usize => Uint,  u64,
 
-    f32   => float, Float, f64,
-    f64   => float, Float, f64,
+    f32   => Float, f64,
+    f64   => Float, f64,
 );
 
 /// Used by the [`t!`] proc-macro to convert a
