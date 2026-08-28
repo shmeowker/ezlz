@@ -451,11 +451,13 @@ impl<'a> Arg<'a> {
     fn is_numeric(&self) -> bool {
         !matches!(self, Self::String(..))
     }
+
     /// Checks if `self` is an [`Arg::Float`].
     #[inline]
     fn is_float(&self) -> bool {
         matches!(self, Self::Float(..))
     }
+
     /// Returns the truncated absolute value of a numeric argument.
     #[inline]
     fn abs_trunc(&self) -> u64 {
@@ -468,6 +470,7 @@ impl<'a> Arg<'a> {
             Self::String(_) => unsafe { std::hint::unreachable_unchecked() },
         }
     }
+
     /// Writes the value to the `output` buffer
     /// using the method corresponding to its variant.
     #[inline]
@@ -567,8 +570,11 @@ where
 
 /// Generated in place of the [`t!`] proc-macro.
 ///
-/// Panics if [`init`] has not been called or if a translation
-/// cannot be found in the requested locale or the fallback locale.
+/// Panics if [`init`] has not been called.
+///
+/// Panics if a translation doesn't exist in either the requested or fallback
+/// locale, unless the `missing-key-nopanic` feature is enabled, in which case
+/// it returns the translation key.
 pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
     let translations = TRANSLATIONS
         .get()
