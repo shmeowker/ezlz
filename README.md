@@ -9,7 +9,7 @@ in hot loops where the full [CLDR](https://cldr.unicode.org)
 functionality is not required.
 
 ### Features
- - **Fast**: Translations are compiled into the RAM and can be rendered over **15 million** times per second.
+ - **Fast**: Translations are compiled into RAM and can be rendered over **15 million** times per second.
  - **Simple**: The basic API is just a single function and a macro.
  - **Pluralization**: Plural rules are compiled from placeholder syntax.
 
@@ -284,10 +284,11 @@ hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
 
 
 ## Benchmarks
-Benchmarks were run with Criterion harness using:
+Benchmarks were run in the following conditions:
 
+* Harness: [Criterion](https://crates.io/crates/criterion)
 * Allocator: [mimalloc](https://github.com/microsoft/mimalloc)
-* Environment: [Termux](https://github.com/termux/termux-app) 0.118.3
+* Environment: [Termux](https://github.com/termux/termux-app)
 * OS: Android 14
 * CPU: [MediaTek Dimensity 8050](https://www.mediatek.com/products/smartphones/mediatek-dimensity-8050)
 
@@ -317,5 +318,4 @@ For development, the benchmark source is in `benches/benchmarks.rs`.
 
 
 ## License
-
 MIT
