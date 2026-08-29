@@ -392,6 +392,7 @@ impl Template {
     /// variant to a [`String`] buffer, returning the buffer.
     fn render(&self, args: &[(&str, Arg<'_>)]) -> String {
         /// Find an [`Arg`] by its `name` in a list of `args`.
+        #[inline]
         fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> {
             args.iter()
                 .find(|(arg_name, _)| *arg_name == name)

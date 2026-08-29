@@ -9,7 +9,7 @@ in hot loops where the full [CLDR](https://cldr.unicode.org)
 functionality is not required.
 
 ### Features
- - **Fast**: Translations are compiled at runtime and can be rendered over 10 million times per second for simple templates.
+ - **Fast**: Translations are compiled into RAM and can be rendered over **15 million** times per second.
  - **Simple**: The basic API is just a single function and a macro.
  - **Pluralization**: Plural rules are compiled from placeholder syntax.
 
@@ -286,6 +286,7 @@ hot loops. See the [Benchmarks](#benchmarks) section for detailed statistics.
 ## Benchmarks
 Benchmarks were run with Criterion harness using:
 
+* Allocator: [mimalloc](https://github.com/microsoft/mimalloc)
 * Environment: [Termux](https://github.com/termux/termux-app) 0.118.3
 * OS: Android 14
 * CPU: [MediaTek Dimensity 8050](https://www.mediatek.com/products/smartphones/mediatek-dimensity-8050)
@@ -295,17 +296,17 @@ Results:
 
 | Benchmark          | Description             |   Average |
 | ------------------ | ----------------------- | --------: |
-| `text`             | No placeholders         |     80 ns |
-| `simple`           | Single integer          |     91 ns |
-| `simple<-string`   | Single string           |     87 ns |
-| `simple<-float`    | Single float            |    113 ns |
-| `simple (x10)`     | 10 `simple` in one      |    162 ns |
-| `plural_en`        | English integer plural  |    104 ns |
-| `plural_en<-float` | English float plural    |    126 ns |
-| `plural_en (x10)`  | 10 `plural_en` in one   |    139 ns |
-| `plural_fr<-float` | French float plural     |    126 ns |
-| `plural_ru`        | Russian integer plural  |    108 ns |
-| `plural_ru<-float` | Russian float plural    |    125 ns |
+| `text`             | No placeholders         |     47 ns |
+| `simple`           | Single integer          |     53 ns |
+| `simple<-string`   | Single string           |     50 ns |
+| `simple<-float`    | Single float            |     72 ns |
+| `simple (x10)`     | 10 `simple` in one      |    127 ns |
+| `plural_en`        | English integer plural  |     61 ns |
+| `plural_en<-float` | English float plural    |     86 ns |
+| `plural_en (x10)`  | 10 `plural_en` in one   |    101 ns |
+| `plural_fr<-float` | French float plural     |     87 ns |
+| `plural_ru`        | Russian integer plural  |     67 ns |
+| `plural_ru<-float` | Russian float plural    |     85 ns |
 
 ### Running the benchmarks
 Clone the repository and run:

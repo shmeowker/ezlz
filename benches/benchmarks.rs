@@ -2,6 +2,11 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use ezlz::t;
 use std::hint::black_box;
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 fn benchmarks(c: &mut Criterion) {
     ezlz::init("test", "tests/locales").unwrap();
 
