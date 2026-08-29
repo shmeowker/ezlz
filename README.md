@@ -301,10 +301,10 @@ Results:
 | `simple`           | Single integer          |     53 ns |
 | `simple<-string`   | Single string           |     50 ns |
 | `simple<-float`    | Single float            |     72 ns |
-| `simple (x10)`     | 10 `simple` in one      |    127 ns |
+| `simple (x10)`     | 10 integers             |    127 ns |
 | `plural_en`        | English integer plural  |     61 ns |
 | `plural_en<-float` | English float plural    |     86 ns |
-| `plural_en (x10)`  | 10 `plural_en` in one   |    101 ns |
+| `plural_en (x10)`  | 10 plural integers      |    101 ns |
 | `plural_fr<-float` | French float plural     |     87 ns |
 | `plural_ru`        | Russian integer plural  |     67 ns |
 | `plural_ru<-float` | Russian float plural    |     85 ns |
