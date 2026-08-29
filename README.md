@@ -9,7 +9,7 @@ in hot loops where the full [CLDR](https://cldr.unicode.org)
 functionality is not required.
 
 ### Features
- - **Fast**: Translations are compiled into RAM and can be rendered over **15 million** times per second.
+ - **Fast**: Translations are compiled into the RAM and can be rendered over **15 million** times per second.
  - **Simple**: The basic API is just a single function and a macro.
  - **Pluralization**: Plural rules are compiled from placeholder syntax.
 
