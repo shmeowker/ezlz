@@ -15,7 +15,7 @@ harness = false
 
 [package]
 name = "ezlz"
-version = "1.2.5"
+version = "1.2.6"
 edition = "2024"
 description = "A compact i18n crate optimized for hot loops."
 license = "MIT"

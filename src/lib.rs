@@ -61,7 +61,7 @@ pub enum Error {
     },
     /// Occurs if [`init`] is called after a successful initialization.
     AlreadyInitialized,
-    /// Occurs if the fallback locale can't found in locales directory.
+    /// Occurs if the fallback locale can't be found in the provided directory.
     FallbackLocaleNotFound { name: String, path: PathBuf },
 }
 

@@ -185,14 +185,15 @@ You can have multiple placeholders in a template.
 Placeholder names can repeat.
 
 ### Supported types
-You can pass the following types into the placeholders:
+Placeholders accept the following types:
 - Unsigned: `u8`, `u16`, `u32`, `u64`, `usize`
 - Signed: `i8`, `i16`, `i32`, `i64`, `isize`
 - Float: `f32`, `f64`
 - Text: `String`, `&str`
 
-Or any custom type that implements `ezlz::ToArg` trait.
-Check out [docs.rs](https://docs.rs/ezlz/latest/trait.ToArg.html) or source code for reference.
+You can also pass any custom type whose reference implements
+[`ToArg`](https://docs.rs/ezlz/latest/trait.ToArg.html)
+trait. Check out the source code for reference.
 
 ### Pluralization
 A plural placeholder has an identifier and a set of rules that are
