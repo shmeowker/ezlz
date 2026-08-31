@@ -466,8 +466,9 @@ impl<'a> Arg<'a> {
             Self::Int(value) => value.unsigned_abs(),
             Self::Uint(value) => *value,
             Self::Float(value) => value.abs() as u64,
-            // Because this function is only called after making sure
-            // an arg is numeric, the string arm is not needed.
+            // Safety: because this function is only called after making sure
+            // the Arg [`is_numeric`] (what is done in [`plural::Ruleset::render`],
+            // the `String` variant can never be passed to this function.
             Self::String(_) => unsafe { std::hint::unreachable_unchecked() },
         }
     }
