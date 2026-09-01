@@ -52,7 +52,7 @@ pub enum Error {
     InvalidYaml { path: PathBuf, message: String },
     /// Error during [`Template`] compilation.
     ///
-    /// Occurs if a translation string has
+    /// Occurs if a translation value has
     /// unclosed or invalid placeholders.
     InvalidTemplate {
         path: PathBuf,
@@ -333,7 +333,7 @@ impl Part {
     }
 }
 
-/// A compiled representation of a translation string.
+/// A compiled representation of a translation value.
 #[derive(Debug)]
 struct Template {
     /// List of the compiled template parts.

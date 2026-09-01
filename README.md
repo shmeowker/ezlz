@@ -197,25 +197,29 @@ trait. Check out the source code for reference.
 
 ### Pluralization
 A plural placeholder has an identifier and a set of rules that are
-compiled during initialization. If rule text starts with `=`, the rendered number
-is replaced instead of prepended.
-
-The rule syntax is designed to be capable of implementing
-any pluralization rule for any natural language.
+compiled during initialization. The rule syntax is designed to be capable
+of implementing any pluralization rule for any natural language.
 Matching rules are defined explicitly by the locale author.
 ```text
 {id|selector:text|selector:text|...|text}
 ```
 
 
-**Numeric values are matched using their absolute integer value with the fractional part truncated.**
-This does not affect the rendered number. The `.` matches the original argument type and therefore
-distinguishes floating-point inputs.
-
-
 Rules are evaluated from left to right. The first matching rule is selected.
 **Float inputs will not match any selectors except `.`, `~`, and fallback.**
 
+
+**Numeric values are matched using their absolute integer value
+with the fractional part truncated.** This does not affect the 
+rendered number. The `.` selector matches the original argument
+type and therefore distinguishes floating-point inputs.
+
+
+If rule text starts with `=`, the rendered number is replaced
+instead of prepended. If a plural placeholder receives a non-numeric
+value it renders only the value itself and returns without rule matching.
+
+#### Selectors
 | Selector | Description                           | Syntax              |
 | -------- | ------------------------------------- | ------------------- |
 | `~`      | Numeric value/range, including floats | `~1` `~0-1` `~2+`   |
@@ -226,7 +230,7 @@ Rules are evaluated from left to right. The first matching rule is selected.
 | *(none)* | Unconditional fallback                | `text`              |
 
 
-Rules can use `+` for an open-ended range.
+Selectors can use `+` for an open-ended range.
 Here, `N` is an absolute truncated integer value, as mentioned above.
 ```text
 %1+   modulo 10 of N is 1 or greater
