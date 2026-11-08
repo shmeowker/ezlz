@@ -15,9 +15,10 @@ harness = false
 
 [package]
 name = "ezlz"
-version = "1.2.6"
+version = "2.0.0"
 edition = "2024"
-description = "A compact i18n crate optimized for hot loops."
+rust-version = "1.85.0"
+description = "A compact i18n crate."
 license = "MIT"
 repository = "https://github.com/shmeowker/ezlz"
 readme = "README.md"
@@ -29,11 +30,12 @@ rustdoc-args = ["--document-private-items"]
 
 [dependencies]
 ahash = "0.8.12"
-ezlz-macros = { path = "ezlz_macros", version = "0.2.2" }
-itoa = "1.0.18"
+ezlz-macros = { path = "ezlz_macros", version = "0.3.0" }
+itoap = "1.0.1"
 serde_yaml = "0.9"
 zmij = { version = "1.0.23" }
 
 [features]
 default = []
 missing-key-nopanic = []
+fast-floats = []

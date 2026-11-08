@@ -1,0 +1,23 @@
+shared:
+  greeting: "extra greeting"
+
+r:
+  plain: "Hello"
+  unicode: "Привет, {name}! 你好 🎉"
+  var: "{x}"
+  twice: "{x}-{x}"
+  two: "{a} and {b}"
+  type: "keyword key"
+  nested:
+    deep:
+      key: "deep {x}"
+  flow: { a: { b: "flow {x}" } }
+  nomatch: "{n|=1: one}"
+  open: "{n|=2+: many| few}"
+  float_dot: "{n|.: float|: int}"
+  colon: "{n|=1: item|: items: all}"
+  replace: "{n|=0:=none|=1:=one| many}"
+  tilde: "{n|~0-1: few| many}"
+  mod10: "{n|%1: one|%2-4: few|: many}"
+  mod100: "{n|#11-14: teen| other}"
+  anchor: &anchored "anchored {x}"

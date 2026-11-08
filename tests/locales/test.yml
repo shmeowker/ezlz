@@ -20,3 +20,6 @@ bench:
   plural_en_x10: "{x|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}"
   plural_fr: "{x|~0-1: article| articles}"
   plural_ru: "{x|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"
+
+shared:
+  greeting: "fallback greeting"

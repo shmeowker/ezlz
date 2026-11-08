@@ -1,7 +1,7 @@
-use criterion::{Criterion, criterion_group, criterion_main};
-use ezlz::t;
 use std::hint::black_box;
 
+use criterion::{Criterion, criterion_group, criterion_main};
+use ezlz::t;
 use mimalloc::MiMalloc;
 
 #[global_allocator]

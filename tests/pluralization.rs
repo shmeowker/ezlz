@@ -3,14 +3,7 @@ use ezlz::t;
 #[test]
 fn plural_languages() {
     ezlz::init("test", "tests/locales").unwrap();
-    let replace = [
-        (0, "zero"),
-        (1, "one"),
-        (2, "two"),
-        (3, "three"),
-        (4, "four"),
-        (5, "five"),
-    ];
+    let replace = [(0, "zero"), (1, "one"), (2, "two"), (3, "three"), (4, "four"), (5, "five")];
     let ru = [
         (0, "0 столов"),
         (1, "1 стол"),
@@ -125,11 +118,7 @@ fn plural_languages() {
         (10, "10 articles"),
         (101, "101 articles"),
     ];
-    let fr_float = [
-        (-0.5, "-0.5 article"),
-        (1.5, "1.5 article"),
-        (2.0, "2.0 articles"),
-    ];
+    let fr_float = [(-0.5, "-0.5 article"), (1.5, "1.5 article"), (2.0, "2.0 articles")];
 
     // Chinese: intentionally no plural distinction.
     let cn = [
