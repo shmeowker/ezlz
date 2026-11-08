@@ -56,7 +56,7 @@ messages:
   hello: "Привет, {name}!"
   items: "У тебя {n|.: предмета|#11-14: предметов|%1: предмет|%2-4: предмета| предметов}."
 ```
-```rust,no_run
+```rust no_run
 use ezlz::t;
 
 fn main() {
@@ -82,7 +82,7 @@ Each `.yml` or `.yaml` file in the locales directory contains
 translations for one language.
 The filename without the extension is the locale name.
 You must initialize ezlz with a fallback locale:
-```rust,no_run
+```rust no_run
 ezlz::init("en", "locales").unwrap();
 ```
 Only the top level of the directory is scanned (subdirectories are ignored),
@@ -102,7 +102,7 @@ foo:
     qux: "grault"
 ```
 can be referenced as:
-```rust,ignore
+```rust ignore
 t!(lang, foo.bar.baz);
 t!(lang, foo.bar.qux);
 ```
@@ -120,7 +120,7 @@ placeholders and stored in memory as a compiled `Template` object.
 If a requested locale does not contain a translation,
 ezlz tries to find it in the fallback locale and **panics
 if the translation is not found there either**.
-```rust,ignore
+```rust ignore
 // Falls back to 'en'
 t!("jp", foo.bar);
 // Panic: translation 'nonexistent.key' not found in locale 'en' and fallback locale
@@ -164,14 +164,14 @@ t!(<locale>, <key>[, arguments...])
 ### Locale
 The `locale` can be any Rust expression that can be borrowed as a `&str`,
 such as `&str`, `String`, `Box<str>` or `Cow<str>`.
-```rust,ignore
+```rust ignore
 t!("en", foo.bar);
 t!(current_locale(), foo.bar.baz);
 ```
 
 ### Translation key
 A translation `key` is the YAML path separated by dots:
-```rust,ignore
+```rust ignore
 t!("en", menu.login);
 t!("en", store.cart.total);
 ```
@@ -184,7 +184,7 @@ at compile time: a typo is found at runtime (see the fallback behavior above).
 All arguments are **named**, but you can pass a bare variable
 whose name matches the placeholder name:
 
-```rust,ignore
+```rust ignore
 let name = "Anna";
 let items = 5;
 
@@ -192,7 +192,7 @@ t!("en", examples.stats, name, items);
 ```
 
 For an explicit placeholder name or expression:
-```rust,ignore
+```rust ignore
 t!("en", foo, name = user_name);
 t!("en", foo, count = some_expression());
 ```
@@ -340,7 +340,7 @@ count: "{n|=0:=no items|=1:=one item| items}"
 
 ## Hot reloading
 `reinit` loads a new set of translations and atomically swaps it in:
-```rust,no_run
+```rust no_run
 // SAFETY: translation lookups are short-lived, see below.
 unsafe { ezlz::reinit("en", "locales").unwrap(); }
 ```
@@ -351,7 +351,7 @@ no other thread is still reading the old translations when they are freed; you m
 ensure that no lookup (a single `t!` call) can outlive the delay. If the new
 translations fail to load, the old ones stay in place and an `Error` is returned.
 `reinit` also works as an initial `init`.
-```rust,no_run
+```rust no_run
 use std::num::NonZero;
 
 let delay = NonZero::new(5).unwrap();
