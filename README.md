@@ -118,9 +118,8 @@ t!("en", nonexistent.key);
 
 Panic can be changed to returning the translation key instead
 by enabling the `missing-key-nopanic` feature.
-```toml
-# Cargo.toml
-ezlz = { version = "1", features = ["missing-key-nopanic"] }
+```shell
+cargo add ezlz -F missing-key-nopanic
 ```
 
 Locale names are matched exactly: `en_GB` does **not** fall back to `en`,
