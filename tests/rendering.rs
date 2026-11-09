@@ -175,7 +175,7 @@ fn fallback_locale() {
 }
 
 #[test]
-#[cfg(not(feature = "missing-key-nopanic"))]
+#[cfg(not(feature = "stringify-missing-keys"))]
 #[should_panic(expected = "translation 'nope.key' not found in locale 'extra' and fallback locale")]
 fn missing_key_panics() {
     init_test_locales();
@@ -183,7 +183,7 @@ fn missing_key_panics() {
 }
 
 #[test]
-#[cfg(not(feature = "missing-key-nopanic"))]
+#[cfg(not(feature = "stringify-missing-keys"))]
 #[should_panic(expected = "translation 'only.here' not found in locale 'test'")]
 fn key_missing_from_fallback_panics_even_if_another_locale_has_it() {
     init_test_locales();

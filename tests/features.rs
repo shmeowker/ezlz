@@ -1,4 +1,4 @@
-#![cfg(feature = "missing-key-nopanic")]
+#![cfg(feature = "stringify-missing-keys")]
 
 use ezlz::t;
 

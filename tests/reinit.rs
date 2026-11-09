@@ -43,7 +43,7 @@ fn reinit_swaps_translations() {
 
     // Readers hammering the store while it is replaced repeatedly must only
     // ever see complete, valid translations.
-    ezlz::set_cleanup_delay(std::num::NonZero::new(1).unwrap());
+    ezlz::set_grace_period(std::num::NonZero::new(1).unwrap());
     let stop = Arc::new(AtomicBool::new(false));
     let readers: Vec<_> = (0..4)
         .map(|_| {

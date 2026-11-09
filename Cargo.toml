@@ -3,11 +3,12 @@ members = [
     ".",
     "ezlz_macros",
 ]
+exclude = [".github", ".rust-analyzer.toml", "rustfmt.toml", "Cargo.lock"]
 resolver = "2"
 
 [package]
 name = "ezlz"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2024"
 rust-version = "1.85.0"
 description = "A compact i18n crate."
@@ -26,7 +27,7 @@ zmij = { version = "1.0.23" }
 
 [features]
 default = []
-missing-key-nopanic = []
+stringify-missing-keys = []
 fast-floats = []
 
 [dev-dependencies]

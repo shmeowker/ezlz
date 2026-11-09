@@ -19,7 +19,7 @@ pub use ezlz_macros::t;
 static STORAGE: AtomicPtr<Translations> = AtomicPtr::new(null_mut());
 /// How long an old storage is kept alive in memory
 /// after calling [`reinit`], in seconds.
-static CLEANUP_DELAY: AtomicU64 = AtomicU64::new(1);
+static GRACE_PERIOD: AtomicU64 = AtomicU64::new(60);
 
 /// Stores all compiled [`Template`]s for all locales along
 /// with the name of the fallback locale.
@@ -87,9 +87,9 @@ impl Display for Error {
 impl error::Error for Error {}
 
 /// Sets how long the old storage is kept alive in memory after
-/// calling [`reinit`]. This delay is 1 second by default.
-pub fn set_cleanup_delay(seconds: NonZero<u64>) {
-    CLEANUP_DELAY.store(seconds.get(), Ordering::Relaxed);
+/// calling [`reinit`]. This delay is 60 seconds by default.
+pub fn set_grace_period(seconds: NonZero<u64>) {
+    GRACE_PERIOD.store(seconds.get(), Ordering::Relaxed);
 }
 
 /// Initializes the localization store from a `directory`. The `fallback`
@@ -131,15 +131,17 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
 }
 
 /// Initializes a new storage and swaps the old one with it.
-/// The old storage will be dropped after [`CLEANUP_DELAY`] seconds.
+/// The old storage will be dropped after [`GRACE_PERIOD`] seconds.
 ///
-/// That delay can be changed with [`set_cleanup_delay`] and is 1 second by default.
+/// That delay can be changed with [`set_grace_period`] and is 60 second by default.
 ///
 /// # Safety
 /// You must ensure that all other threads reading the old storage finish accessing it
-/// within the [`CLEANUP_DELAY`] window. This is very unlikely though, because individual
+/// within the [`GRACE_PERIOD`] window. This is very unlikely though, because individual
 /// storage lookups usually take no more than 1 millisecond and return an owned [`String`]
-/// without using the storage longer than that.
+/// without using the storage longer than that, however during a severe lag spike
+/// it may actually happen, so you should either avoid using this or set the delay to
+/// a long enough time if the memory safety is the priority.
 pub unsafe fn reinit(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
     let new = load(fallback, directory)?;
     let old = STORAGE.swap(new, Ordering::AcqRel);
@@ -147,7 +149,7 @@ pub unsafe fn reinit(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>)
     if !old.is_null() {
         let addr = old as usize;
         thread::spawn(move || {
-            thread::sleep(Duration::from_secs(CLEANUP_DELAY.load(Ordering::Acquire)));
+            thread::sleep(Duration::from_secs(GRACE_PERIOD.load(Ordering::Acquire)));
             unsafe {
                 let _ = Box::from_raw(addr as *mut Translations);
             }
@@ -609,7 +611,7 @@ where
 /// Panics if [`init`] has not been called.
 ///
 /// Panics if a translation doesn't exist in either the requested or fallback
-/// locale, unless the `missing-key-nopanic` feature is enabled, in which case
+/// locale, unless the `stringify-missing-keys` feature is enabled, in which case
 /// it returns the translation key.
 #[doc(hidden)]
 pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
@@ -624,9 +626,9 @@ pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
     match template {
         Some(translation) => translation.render(args),
         None => {
-            #[cfg(feature = "missing-key-nopanic")]
+            #[cfg(feature = "stringify-missing-keys")]
             return key.to_string();
-            #[cfg(not(feature = "missing-key-nopanic"))]
+            #[cfg(not(feature = "stringify-missing-keys"))]
             panic!("translation '{key}' not found in locale '{locale}' and fallback locale");
         },
     }
