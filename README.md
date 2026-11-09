@@ -1,6 +1,7 @@
+[![crates.io version](https://shields.io/crates/v/ezlz)](https://crates.io/crates/ezlz)
+
 # ezlz
 A compact internationalization crate optimized for hot loops.
-
 
 ## Overview
 The goal is to support all natural languages while keeping the crate
@@ -19,19 +20,6 @@ functionality is not required.
 
 
 ## Quick start
-
-### Installation
-Add with Cargo:
-```bash
-cargo add ezlz
-```
-Or manually to `Cargo.toml`:
-```toml
-[dependencies]
-ezlz = "1"
-```
-
-### Setup
 Create a directory for your locales and YAML files containing the translations.
 For example:
 ```text
@@ -65,7 +53,7 @@ fn main() {
     let name = "Anna";
     let n = 4;
 
-    assert_eq!(t!("en", messages.hello, name), "Hello, Anna!");
+    assert_eq!(t!("fr", messages.hello, name), "Bonjour, Anna!");
     assert_eq!(t!("en", messages.items, n), "You have 4 items.");
 
     let text = t!(current_locale(), messages.items, n);
@@ -180,6 +168,7 @@ work, but YAML keys that start with a digit or contain characters such as `-`
 can be defined in YAML and cannot be referenced with `t!`. Keys are not checked
 at compile time: a typo is found at runtime (see the fallback behavior above).
 
+
 ### Arguments
 All arguments are **named**, but you can pass a bare variable
 whose name matches the placeholder name:
@@ -225,6 +214,7 @@ double: 'but \\{this} is still a placeholder'
 Placeholder names must not be empty and may contain only ASCII letters, digits and `_`.
 You can have multiple placeholders in a template, and names can repeat.
 
+
 ### Escaping
 A backslash escapes `{` only when it is directly in front of it:
  - `\{` renders as a literal `{` (the backslash is removed) and does not
@@ -241,6 +231,7 @@ Use single quotes (`'\{x}'`), or double the backslash (`"\\{x}"`).
 Placeholders cannot be nested, and the first `}` always closes a placeholder,
 so plural rule text cannot contain `}`. A stray `}` outside a placeholder is
 plain text.
+
 
 ### Supported types
 Placeholders accept the following types:
@@ -261,6 +252,7 @@ number or `String`) does not compile. Pass the value itself, or for text
 
 Floats are rendered with their shortest round-trip representation, and `f32`
 values keep their own precision: `1.1_f32` renders as `1.1`.
+
 
 ### Pluralization
 A plural placeholder has an identifier and a set of rules that are
@@ -324,6 +316,7 @@ though its numerical value is an integer.
 Special float values are handled by the same rules: `NaN` truncates to `0`
 and infinities saturate, so they are matched as `0` and as a very large number.
 
+
 #### Plural placeholder examples
 ```yaml
 en: "{i|=1: fox| foxes}"
@@ -360,6 +353,7 @@ ezlz::set_cleanup_delay(delay); // seconds, default is 1
 The delay must be non-zero because dropping the old translations immediately
 will almost certainly cause severe undefined behavior.
 
+
 ## How it works
 
 ### Initialization
@@ -376,6 +370,7 @@ will almost certainly cause severe undefined behavior.
    configured fallback locale does not exist. `reinit` replaces the pointer
    (see [Hot reloading](#hot-reloading)).
 
+
 ### Runtime lookup
 1. `t!` expands to a call that passes the locale, hardcoded translation key,
    and converted arguments to the runtime lookup function.
@@ -386,6 +381,7 @@ will almost certainly cause severe undefined behavior.
    arguments (by a linear search over the few passed arguments) and render them into
    the same buffer.
 4. Return the resulting `String`.
+
 
 ### Summary
 This keeps YAML parsing, template compilation, and plural rule compilation out of
@@ -422,6 +418,7 @@ Results:
 | `plural_ru<-float` | Russian float plural    |     78 ns |
 
 Every call allocates and returns one `String`, so the allocator matters.
+
 
 ### Running the benchmarks
 Clone the repository and run:

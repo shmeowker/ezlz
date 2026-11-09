@@ -85,7 +85,7 @@ impl Parse for Translation {
 /// ```
 ///
 /// Examples:
-/// ```text
+/// ```rust no_run
 /// t!("ex", foo.corge);
 /// t!(lang, foo.bar.baz, qux);
 /// t!(get_lang(), foo.pets, birds = birds(), cats, dogs = 0);

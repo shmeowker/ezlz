@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use std::error::Error as StdError;
+use std::error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::num::NonZero;
 use std::path::{Path, PathBuf};
@@ -84,9 +84,10 @@ impl Display for Error {
     }
 }
 
-impl StdError for Error {}
+impl error::Error for Error {}
 
-/// Sets the [`CLEANUP_DELAY`] value.
+/// Sets how long the old storage is kept alive in memory after 
+/// calling [`reinit`]. This delay is 1 second by default.
 pub fn set_cleanup_delay(seconds: NonZero<u64>) {
     CLEANUP_DELAY.store(seconds.get(), Ordering::Relaxed);
 }
@@ -131,6 +132,8 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
 
 /// Initializes a new storage and swaps the old one with it.
 /// The old storage will be dropped after [`CLEANUP_DELAY`] seconds.
+///
+/// That delay can be changed with [`set_cleanup_delay`] and is 1 second by default.
 ///
 /// # Safety
 /// You must ensure that all other threads reading the old storage finish accessing it
