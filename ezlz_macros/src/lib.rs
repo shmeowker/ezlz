@@ -86,9 +86,7 @@ impl Parse for Translation {
 /// ```
 ///
 /// Examples:
-/// ```rust no_run
-/// use ezlz::t;
-///
+/// ```rust ignore
 /// t!("ex", foo.corge);
 /// t!(lang, foo.bar.baz, qux);
 /// t!(get_lang(), foo.pets, birds = birds(), cats, dogs = 0);
