@@ -131,10 +131,10 @@ t!("en", nonexistent.key);
 ```
 
 Panic can be changed to returning the translation key instead
-by enabling the `missing-key-nopanic` feature.
+by enabling the `stringify-missing-keys` feature.
 
 ```shell
-cargo add ezlz -F missing-key-nopanic
+cargo add ezlz -F stringify-missing-keys
 ```
 
 Locale names are matched exactly: `en_GB` does **not** fall back to `en`,
@@ -383,7 +383,7 @@ to outlive the drop timer, and in that case the behavior is undefined.
 You should either avoid using this completely or set the grace period to a 
 very long duration if memory safety is crucial in your codebase.
 If the new translations fail to load, the old ones stay in place and an `Error` is returned.
-`reinit` also works as an initial `init`. The grace period is 60 second by default, configurable with
+`reinit` also works as an initial `init`. The grace period is 60 seconds by default, configurable with
 `set_grace_period`.
 
 ```rust no_run
@@ -494,10 +494,10 @@ Internals are covered by unit tests in `src/lib.rs` and `src/plural.rs`.
 
 ## Cargo features
 
-| Feature               | Description                                                                |
-| --------------------- | -------------------------------------------------------------------------- |
-| `missing-key-nopanic` | `t!` returns the translation key instead of panicking when it isn't found. |
-| `fast-floats`         | Renders floats without checking for NaN and infinity (see below).          |
+| Feature                  | Description                                                                |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `stringify-missing-keys` | `t!` returns the translation key instead of panicking when it isn't found. |
+| `fast-floats`            | Renders floats without checking for NaN and infinity (see below).          |
 
 ### `fast-floats`
 

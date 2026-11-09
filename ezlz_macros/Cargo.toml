@@ -2,7 +2,9 @@
 name = "ezlz-macros"
 version = "0.3.0"
 edition = "2024"
+rust-version = "1.85.0"
 description = "Procedural macros for ezlz"
+repository = "https://github.com/shmeowker/ezlz"
 license = "MIT"
 
 [lib]

@@ -3,7 +3,6 @@ members = [
     ".",
     "ezlz_macros",
 ]
-exclude = [".github", ".rust-analyzer.toml", "rustfmt.toml", "Cargo.lock"]
 resolver = "2"
 
 [package]
@@ -17,6 +16,7 @@ repository = "https://github.com/shmeowker/ezlz"
 readme = "README.md"
 keywords = ["i18n", "l10n", "pluralization", "localization"]
 categories = ["localization", "internationalization"]
+exclude = [".github", ".rust-analyzer.toml", "rustfmt.toml", "Cargo.lock"]
 
 [dependencies]
 ahash = "0.8.12"
