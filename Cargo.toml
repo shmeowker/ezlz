@@ -7,7 +7,7 @@ resolver = "2"
 
 [package]
 name = "ezlz"
-version = "2.1.0"
+version = "3.0.0"
 edition = "2024"
 rust-version = "1.85.0"
 description = "A compact i18n crate."
@@ -16,7 +16,7 @@ repository = "https://github.com/shmeowker/ezlz"
 readme = "README.md"
 keywords = ["i18n", "l10n", "pluralization", "localization"]
 categories = ["localization", "internationalization"]
-exclude = [".github", ".rust-analyzer.toml", "rustfmt.toml", "Cargo.lock"]
+exclude = [".github", ".rust-analyzer.toml", "rustfmt.toml", "Cargo.lock", ".gitignore"]
 
 [dependencies]
 ahash = "0.8.12"
