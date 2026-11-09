@@ -1,0 +1,101 @@
+name: CI
+
+on:
+    push:
+    pull_request:
+    workflow_dispatch:
+
+# The workflow only reads the repository.
+permissions:
+    contents: read
+
+# A newer push to the same branch cancels the older run.
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    CARGO_TERM_COLOR: always
+    CARGO_INCREMENTAL: 0
+
+jobs:
+    # Unit, integration and doc tests on every platform, with and without features.
+    # ubuntu-24.04-arm runs the non-x86 code paths (e.g. in itoap), like your phone.
+    test:
+        name: test (${{ matrix.os }}${{ matrix.features }})
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os:
+                    [
+                        ubuntu-latest,
+                        ubuntu-24.04-arm,
+                        macos-latest,
+                        windows-latest,
+                    ]
+                features: ["", " --all-features"]
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo test --workspace${{ matrix.features }}
+
+    # Each feature on its own: they change code paths independently of each other.
+    features:
+        name: test (--features ${{ matrix.feature }})
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                feature: [missing-key-nopanic, fast-floats]
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo test --workspace --features ${{ matrix.feature }}
+
+    # Clippy, with and without features, warnings are errors. Because `rust-version`
+    # is set, clippy also warns when code uses an API newer than the MSRV.
+    clippy:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: clippy
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo clippy --workspace --all-targets -- -D warnings
+            - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+    # rustfmt.toml uses unstable options, so this needs nightly.
+    fmt:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@nightly
+              with:
+                  components: rustfmt
+            - run: cargo fmt --all -- --check
+
+    # The library must still build on the oldest Rust the crate claims to support.
+    # Keep the version here in sync with `rust-version` in both Cargo.toml files.
+    msrv:
+        name: msrv (1.85)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@1.85.0
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo check --workspace --all-features
+
+    # Documentation must build without warnings (broken links, etc.).
+    docs:
+        runs-on: ubuntu-latest
+        env:
+            RUSTDOCFLAGS: -D warnings
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo doc --no-deps --workspace --all-features

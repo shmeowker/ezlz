@@ -135,11 +135,11 @@ fn parse_selector(body: &str) -> Result<(Op, u8, u8), &'static str> {
 
     let bytes = body.as_bytes();
     let op = Op::try_from(bytes[0])?;
-    
+
     if op == Op::Float {
-        return Err("the `.` selector does not take a range")
+        return Err("the `.` selector does not take a range");
     }
-    
+
     let Ok(range) = std::str::from_utf8(&bytes[1..]) else {
         return Err("invalid UTF-8 in rule selector range body");
     };
@@ -243,7 +243,7 @@ mod tests {
         ] {
             assert!(parse_selector(selector).is_err(), "{selector:?} should be rejected");
         }
-        
+
         assert!(parse_selector(".5").is_err());
         assert!(parse_selector(".1-2").is_err());
     }

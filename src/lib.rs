@@ -1,13 +1,13 @@
 #![doc = include_str!("../README.md")]
+#![allow(rustdoc::private_intra_doc_links)]
 
-use std::error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::num::NonZero;
 use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use std::time::Duration;
-use std::{fs, thread};
+use std::{error, fs, thread};
 
 use ahash::{HashMap, HashMapExt};
 use serde_yaml::{Value, from_str};
@@ -86,7 +86,7 @@ impl Display for Error {
 
 impl error::Error for Error {}
 
-/// Sets how long the old storage is kept alive in memory after 
+/// Sets how long the old storage is kept alive in memory after
 /// calling [`reinit`]. This delay is 1 second by default.
 pub fn set_cleanup_delay(seconds: NonZero<u64>) {
     CLEANUP_DELAY.store(seconds.get(), Ordering::Relaxed);

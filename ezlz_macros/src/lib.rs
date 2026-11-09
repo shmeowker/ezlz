@@ -1,4 +1,5 @@
 //! Procedural macro [`t!`] for `ezlz` crate.
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::ext::IdentExt;

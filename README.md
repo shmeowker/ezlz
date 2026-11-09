@@ -1,4 +1,5 @@
 [![crates.io version](https://shields.io/crates/v/ezlz)](https://crates.io/crates/ezlz)
+[![CI](https://github.com/shmeowker/ezlz/actions/workflows/ci.yml/badge.svg)](https://github.com/shmeowker/ezlz/actions/workflows/ci.yml)
 
 # ezlz
 A compact internationalization crate optimized for hot loops.
