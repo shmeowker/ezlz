@@ -398,19 +398,24 @@ impl Template {
         })
     }
 
-    /// Render a template.
-    ///
+    /// Renders a template into a new [`String`] and returns it.
+    fn render(&self, args: &[(&str, Arg<'_>)]) -> String {
+        let mut output = String::with_capacity(self.bufsize);
+        self.render_to(args, &mut output);
+
+        output
+    }
+
     /// Iterates over the [`Part`]s of a template and
     /// renders each part in a way corresponding to its
-    /// variant to a [`String`] buffer, returning the buffer.
-    fn render(&self, args: &[(&str, Arg<'_>)]) -> String {
+    /// variant into the `output` buffer.
+    #[inline]
+    fn render_to(&self, args: &[(&str, Arg<'_>)], output: &mut String) {
         /// Find an [`Arg`] by its `name` in a list of `args`.
         #[inline]
         fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> {
             args.iter().find_map(|(arg_name, value)| (*arg_name == name).then_some(value))
         }
-
-        let mut output = String::with_capacity(self.bufsize);
 
         for part in self.parts.iter() {
             match part {
@@ -420,17 +425,15 @@ impl Template {
 
                 Part::Variable { name } =>
                     if let Some(arg) = find_arg(args, name) {
-                        arg.write_to(&mut output);
+                        arg.write_to(output);
                     },
 
                 Part::Plural { name, rules } =>
                     if let Some(arg) = find_arg(args, name) {
-                        rules.render(&mut output, arg);
+                        rules.render(output, arg);
                     },
             }
         }
-
-        output
     }
 }
 

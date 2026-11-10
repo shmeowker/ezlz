@@ -75,7 +75,7 @@ fn current_locale() -> String {
 
 ### Translations
 
-Each `.yml` or `.yaml` file in the locales directory contains
+Each file with a `.yml` or `.yaml` extension in the locales directory contains
 translations for one language.
 The filename without the extension is the locale name.
 You must initialize ezlz with a fallback locale:
@@ -86,12 +86,10 @@ ezlz::init("en", "locales").unwrap();
 
 Only the top level of the directory is scanned (subdirectories are ignored),
 and a locale must be defined in exactly one file: having both `en.yml` and
-`en.yaml` is an error (`DuplicateLocale`).
+`en.yaml` is an error.
 
-Everything else in the directory is **silently skipped**: files without a
-`.yml`/`.yaml` extension, subdirectories, and files whose name is not valid
-UTF-8 (a locale name must be a valid string). A file skipped this way does not
-produce an error, so a locale file with an unusual name simply won't be found.
+Everything else in the directory is silently skipped: files without a YAML
+extension, subdirectories, and files whose name is not valid UTF-8.
 
 YAML key mappings become dotted translation keys. For example:
 
