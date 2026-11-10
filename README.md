@@ -1,6 +1,6 @@
 [![crates.io version](https://shields.io/crates/v/ezlz)](https://crates.io/crates/ezlz)
 [![docs.rs](https://img.shields.io/docsrs/ezlz)](https://docs.rs/ezlz)
-[![CI](https://github.com/shmeowker/ezlz/actions/workflows/ci.yml/badge.svg)](https://github.com/shmeowker/ezlz/actions/workflows/ci.yml)
+[![tests](https://github.com/shmeowker/ezlz/actions/workflows/tests.yml/badge.svg)](https://github.com/shmeowker/ezlz/actions/workflows/tests.yml)
 
 # ezlz
 
