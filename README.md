@@ -33,6 +33,8 @@ locales/
 ├── en.yml
 ├── fr.yml
 └── ru.yml
+src/
+└── main.rs
 ```
 
 ```yaml
@@ -112,7 +114,7 @@ empty file) and sequences are rejected by `init` with an error, so quote
 values like `"404"` or `"true"`.
 
 The flattened keys must be unique: defining `a.b` both directly and as
-`a: { b: ... }` is an error (`DuplicateKey`), as is repeating a key in one mapping.
+`a: { b: ... }` is an error, as is repeating a key in one mapping.
 
 Once `init` is called, each translation is parsed for
 placeholders and stored in memory as a compiled `Template` object.
