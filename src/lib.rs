@@ -130,18 +130,18 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
     }
 }
 
-/// Initializes a new storage and swaps the old one with it.
-/// The old storage will be dropped after [`GRACE_PERIOD`] seconds.
+/// Initializes a new storage and atomically swaps the old one with it.
 ///
-/// That delay can be changed with [`set_grace_period`] and is 60 second by default.
+/// The old storage will be dropped by a background thread after [`GRACE_PERIOD`] seconds.
+/// That delay can be changed with [`set_grace_period`] and is 60 seconds by default.
 ///
 /// # Safety
-/// You must ensure that all other threads reading the old storage finish accessing it
-/// within the [`GRACE_PERIOD`] window. This is very unlikely though, because individual
-/// storage lookups usually take no more than 1 millisecond and return an owned [`String`]
-/// without using the storage longer than that, however during a severe lag spike
-/// it may actually happen, so you should either avoid using this or set the delay to
-/// a long enough time if the memory safety is the priority.
+/// Using this is mostly safe because in normal conditions the readers only
+/// access the storage for no longer than a millisecond, however during a severe
+/// lag spike a thread can theoretically be frozen for long enough to outlive
+/// the drop timer, and in that case the behavior is undefined.
+/// You should either avoid using this completely or set the grace period to a
+/// very long duration if memory safety is crucial in your codebase.
 pub unsafe fn reinit(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
     let new = load(fallback, directory)?;
     let old = STORAGE.swap(new, Ordering::AcqRel);
@@ -379,21 +379,15 @@ impl Template {
         let mut bufsize = 0;
 
         while !source.is_empty() {
-            let (part, rest) = match Part::parse_next(source) {
-                Ok((part, rest)) => {
-                    match &part {
-                        Part::Text(text) => bufsize += text.len(),
-                        Part::Variable { .. } => {
-                            bufsize += Self::ESTIMATED_ARG_LEN;
-                        },
-                        Part::Plural { .. } => {
-                            bufsize += Self::ESTIMATED_ARG_LEN;
-                        },
-                    }
-                    (part, rest)
+            let (part, rest) = Part::parse_next(source)?;
+
+            match &part {
+                Part::Text(text) => bufsize += text.len(),
+                Part::Variable { .. } | Part::Plural { .. } => {
+                    bufsize += Self::ESTIMATED_ARG_LEN;
                 },
-                Err(msg) => return Err(msg),
-            };
+            }
+
             parts.push(part);
             source = rest;
         }
@@ -418,7 +412,7 @@ impl Template {
 
         let mut output = String::with_capacity(self.bufsize);
 
-        for part in &self.parts {
+        for part in self.parts.iter() {
             match part {
                 Part::Text(text) => {
                     output.push_str(text);
