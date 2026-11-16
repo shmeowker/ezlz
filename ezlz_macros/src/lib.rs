@@ -1,4 +1,4 @@
-//! Procedural macro [`t!`] for `ezlz` crate.
+//! Procedural macros for `ezlz` crate.
 
 use proc_macro::TokenStream;
 use quote::quote;
@@ -7,7 +7,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{Expr, Ident, Result, Token, parse_macro_input};
 
-/// Input of `t!`: `<locale>, <key>[, arguments...]`.
+/// Template parameters: `<locale>, <key>[, arguments...]`.
 struct Translation {
     locale: Expr,
     key: String,
@@ -23,7 +23,7 @@ struct Argument {
 /// Returns the identifier if `expr` is just a bare identifier like `name`.
 fn bare_ident(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Path(path) => path.path.get_ident().map(|ident| ident.to_string()),
+        Expr::Path(path) => path.path.get_ident().map(|ident| ident.unraw().to_string()),
         _ => None,
     }
 }
@@ -78,6 +78,25 @@ impl Parse for Translation {
     }
 }
 
+/// The body of `wt!` macro.
+struct WriteTranslation {
+    output: Expr,
+    translation: Translation,
+}
+
+impl Parse for WriteTranslation {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let output: Expr = input.parse()?;
+        input.parse::<Token![,]>()?;
+        Ok(Self { output, translation: input.parse()? })
+    }
+}
+
+/// Turns the parsed arguments into `("name", Arg)` tuple expressions.
+fn arguments(args: &Punctuated<Argument, Token![,]>) -> impl Iterator<Item = proc_macro2::TokenStream> + '_ {
+    args.iter().map(|Argument { name, value }| quote! { (#name, ::ezlz::__arg(&(#value))) })
+}
+
 /// Generates a translation getter with provided parameters.
 ///
 /// Usage:
@@ -95,12 +114,33 @@ impl Parse for Translation {
 pub fn t(input: TokenStream) -> TokenStream {
     let Translation { locale, key, args } = parse_macro_input!(input as Translation);
 
-    let arguments = args.iter().map(|Argument { name, value }| {
-        quote! { (#name, ::ezlz::__arg(&(#value))) }
-    });
+    let arguments = arguments(&args);
 
     quote! {
         ::ezlz::__get(&(#locale), #key, &[#(#arguments),*])
     }
     .into()
+}
+
+/// Same as `t!`, but renders into a buffer instead of 
+/// allocating a new `String`.
+/// 
+/// Usage:
+/// ```text
+/// wt!(<output>, <locale>, <key>[, arguments...]);
+/// ```
+/// 
+/// Examples:
+/// ```rust ignore
+/// let mut buf = String::new();
+/// wt!(&mut buf, "en", foo.bar);
+/// wt!(&mut buf, "cn", qux.corge);
+/// ```
+#[proc_macro]
+pub fn wt(input: TokenStream) -> TokenStream {
+    let WriteTranslation { output, translation: Translation { locale, key, args } } =
+        parse_macro_input!(input as WriteTranslation);
+    let arguments = arguments(&args);
+
+    quote! { ::ezlz::__write(#output, &(#locale), #key, &[#(#arguments),*]) }.into()
 }

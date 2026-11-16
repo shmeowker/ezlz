@@ -20,8 +20,10 @@ exclude = [".github", ".rust-analyzer.toml", "rustfmt.toml", "Cargo.lock", ".git
 
 [dependencies]
 ahash = "0.8.12"
-ezlz-macros = { path = "ezlz_macros", version = "0.3.0" }
+ezlz-macros = { path = "ezlz_macros", version = "0.4.0" }
 itoap = "1.0.1"
+# serde_yaml is no longer maintained but is still a working YAML parser
+# and should not be replaced without a good reason.
 serde_yaml = "0.9"
 zmij = { version = "1.0.23" }
 

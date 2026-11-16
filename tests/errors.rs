@@ -25,7 +25,7 @@ fn missing_directory() {
 #[test]
 fn invalid_yaml_syntax() {
     let err = fail("syntax", &[("en.yml", "k: [unclosed\n")]);
-    assert!(matches!(err, Error::ParseYaml { .. }), "{err:?}");
+    assert!(matches!(err, Error::Parse { .. }), "{err:?}");
     assert!(err.to_string().contains("en.yml"), "{err}");
 }
 
@@ -40,14 +40,14 @@ fn values_must_be_strings() {
         ("empty", ""),
     ] {
         let err = fail(&format!("value-{name}"), &[("en.yml", content)]);
-        assert!(matches!(err, Error::InvalidYaml { .. }), "{name}: {err:?}");
+        assert!(matches!(err, Error::Value { .. }), "{name}: {err:?}");
     }
 }
 
 #[test]
 fn keys_must_be_strings() {
     let err = fail("key-number", &[("en.yml", "5: x\n")]);
-    assert!(matches!(err, Error::InvalidYaml { .. }), "{err:?}");
+    assert!(matches!(err, Error::Value { .. }), "{err:?}");
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn duplicate_keys_after_flattening() {
 fn duplicate_keys_in_one_mapping() {
     // Rejected by the YAML parser itself.
     let err = fail("dup-key-same-map", &[("en.yml", "a: x\na: y\n")]);
-    assert!(matches!(err, Error::ParseYaml { .. } | Error::DuplicateKey { .. }), "{err:?}");
+    assert!(matches!(err, Error::Parse { .. } | Error::DuplicateKey { .. }), "{err:?}");
 }
 
 #[test]
