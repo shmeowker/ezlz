@@ -212,7 +212,6 @@ pub(crate) fn compile(input: &str) -> Result<(Box<str>, Ruleset), &'static str> 
         let replace = text.starts_with('=');
         let text = if replace { Box::from(&text[1..]) } else { Box::from(text) };
 
-
         rules.push(Rule {
             op,
             lo,
@@ -226,5 +225,5 @@ pub(crate) fn compile(input: &str) -> Result<(Box<str>, Ruleset), &'static str> 
 }
 
 #[cfg(test)]
-#[path ="../unit_tests/plural_tests.rs"]
+#[path = "../unit_tests/plural_tests.rs"]
 mod tests;

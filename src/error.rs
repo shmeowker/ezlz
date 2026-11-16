@@ -14,17 +14,20 @@ pub enum Error {
     /// Locale syntax errors.
     ///
     /// Occurs if a translation file has invalid syntax.
-    Parse { path: PathBuf, source: Box<dyn error::Error + Send + Sync> },
+    Parse {
+        path: PathBuf,
+        source: Box<dyn error::Error + Send + Sync>,
+    },
     /// Unexpected value type.
     ///
     /// Translation files must only have string values.
     Value { path: PathBuf, message: String },
-    /// Error during [`Template`] compilation.
+    /// Error during template compilation.
     ///
     /// Occurs if a translation value has
     /// unclosed or invalid placeholders.
     InvalidTemplate { path: PathBuf, key: String, message: String },
-    /// Occurs if [`init`] is called after a successful initialization.
+    /// Occurs if `init` is called after a successful initialization.
     AlreadyInitialized,
     /// Occurs if the fallback locale can't be found in the provided directory.
     FallbackLocaleNotFound { name: String, path: PathBuf },

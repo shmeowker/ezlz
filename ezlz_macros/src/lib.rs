@@ -88,13 +88,17 @@ impl Parse for WriteTranslation {
     fn parse(input: ParseStream) -> Result<Self> {
         let output: Expr = input.parse()?;
         input.parse::<Token![,]>()?;
-        Ok(Self { output, translation: input.parse()? })
+        Ok(Self {
+            output,
+            translation: input.parse()?,
+        })
     }
 }
 
 /// Turns the parsed arguments into `("name", Arg)` tuple expressions.
 fn arguments(args: &Punctuated<Argument, Token![,]>) -> impl Iterator<Item = proc_macro2::TokenStream> + '_ {
-    args.iter().map(|Argument { name, value }| quote! { (#name, ::ezlz::__arg(&(#value))) })
+    args.iter()
+        .map(|Argument { name, value }| quote! { (#name, ::ezlz::__arg(&(#value))) })
 }
 
 /// Generates a translation getter with provided parameters.
@@ -122,14 +126,14 @@ pub fn t(input: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Same as `t!`, but renders into a buffer instead of 
+/// Same as `t!`, but renders into a buffer instead of
 /// allocating a new `String`.
-/// 
+///
 /// Usage:
 /// ```text
 /// wt!(<output>, <locale>, <key>[, arguments...]);
 /// ```
-/// 
+///
 /// Examples:
 /// ```rust ignore
 /// let mut buf = String::new();
@@ -138,8 +142,10 @@ pub fn t(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro]
 pub fn wt(input: TokenStream) -> TokenStream {
-    let WriteTranslation { output, translation: Translation { locale, key, args } } =
-        parse_macro_input!(input as WriteTranslation);
+    let WriteTranslation {
+        output,
+        translation: Translation { locale, key, args },
+    } = parse_macro_input!(input as WriteTranslation);
     let arguments = arguments(&args);
 
     quote! { ::ezlz::__write(#output, &(#locale), #key, &[#(#arguments),*]) }.into()
