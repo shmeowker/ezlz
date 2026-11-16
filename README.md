@@ -65,12 +65,12 @@ fn main() {
     assert_eq!(t!("fr", messages.hello, name), "Bonjour, Anna!");
     assert_eq!(t!("en", messages.items, n), "You have 4 items.");
 
-    let text = t!(current_locale(), messages.items, n);
-    assert_eq!(text, "У тебя 4 предмета.");
+    let text = t!(lang(), messages.items, n = 6);
+    assert_eq!(text, "У тебя 6 предметов.");
 }
 
-fn current_locale() -> String {
-    "ru".to_owned()
+fn lang() -> String {
+    String::from("ru")
 }
 ```
 
