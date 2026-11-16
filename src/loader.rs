@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-use serde_yaml::{Value, from_str};
+use yaml_serde::{Value, from_str};
 
 use crate::{Error, HashMap, HashMapExt, Template, Translations};
 
