@@ -145,12 +145,11 @@ fn parse_selector(body: &str) -> Result<(Op, u8, u8), &'static str> {
     };
 
     if let Some(lo) = range.strip_suffix('+') {
-        if let Ok(lo) = lo.parse::<u8>()
-            && lo != u8::MAX
-        {
-            return Ok((op, lo, u8::MAX));
-        };
-
+        if let Ok(lo) = lo.parse::<u8>() {
+            if lo != u8::MAX {
+                return Ok((op, lo, u8::MAX));
+            }
+        }
         return Err("invalid rule selector open range bound");
     }
 
@@ -168,11 +167,11 @@ fn parse_selector(body: &str) -> Result<(Op, u8, u8), &'static str> {
         return Err("invalid rule selector range lower bound");
     };
 
-    if let Ok(n) = range.parse::<u8>()
-        && n != u8::MAX
-    {
-        return Ok((op, n, n));
-    };
+    if let Ok(n) = range.parse::<u8>() {
+        if n != u8::MAX {
+            return Ok((op, n, n));
+        }
+    }
 
     Err("invalid rule selector range")
 }
