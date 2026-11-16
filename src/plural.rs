@@ -155,19 +155,17 @@ fn parse_selector(body: &str) -> Result<(Op, u8, u8), &'static str> {
     }
 
     if let Some((lo, hi)) = range.split_once('-') {
-        let lo = lo
-            .parse::<u8>()
-            .ok()
-            .filter(|&v| v != u8::MAX)
-            .ok_or("invalid rule selector range lower bound")?;
-
-        let hi = hi
-            .parse::<u8>()
-            .ok()
-            .filter(|&v| v != u8::MAX)
-            .ok_or("invalid rule selector range upper bound")?;
-
-        return Ok((op, lo, hi));
+        if let Ok(lo) = lo.parse::<u8>() {
+            if lo != u8::MAX {
+                if let Ok(hi) = hi.parse::<u8>() {
+                    if hi != u8::MAX {
+                        return Ok((op, lo, hi));
+                    }
+                }
+                return Err("invalid rule selector range upper bound");
+            }
+        }
+        return Err("invalid rule selector range lower bound");
     };
 
     if let Ok(n) = range.parse::<u8>()
