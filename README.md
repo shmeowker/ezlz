@@ -146,8 +146,8 @@ only to the configured fallback locale.
 | Variant                  | Cause                                                            |
 | ------------------------ | ---------------------------------------------------------------- |
 | `Io`                     | The directory or a file could not be read.                       |
-| `Parse`                  | A file is not valid YAML.                                        |
-| `Invalid`                | A key is not a string, or a value is not a string (see above).   |
+| `Parse`                  | A file has invalid syntax.                                       |
+| `Value`                  | A key is not a string, or a value is not a string (see above).   |
 | `InvalidTemplate`        | A translation has an unclosed or invalid placeholder.            |
 | `AlreadyInitialized`     | `init` was called after a successful initialization.             |
 | `FallbackLocaleNotFound` | No file for the fallback locale was found in the directory.      |
