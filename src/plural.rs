@@ -172,7 +172,6 @@ impl TryFrom<&mut Peekable<Chars<'_>>> for Ruleset {
                     state = State::Text;
                 },
 
-
                 (_, '|' | '}') => {
                     let mut text = take(&mut buf);
 
@@ -198,9 +197,8 @@ impl TryFrom<&mut Peekable<Chars<'_>>> for Ruleset {
 
                     state = State::MaybeSel;
                 },
-                
-                (State::MaybeSel | State::Text, '{') => 
-                    return Err("unquoted { in plural rule text"),
+
+                (State::MaybeSel | State::Text, '{') => return Err("unquoted { in plural rule text"),
 
                 _ => buf.push(c),
             }
