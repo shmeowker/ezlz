@@ -7,7 +7,7 @@ resolver = "2"
 
 [package]
 name = "ezlz"
-version = "3.0.0"
+version = "3.0.1"
 edition = "2024"
 rust-version = "1.85.0"
 description = "A compact i18n crate."
@@ -37,6 +37,3 @@ mimalloc = "0.1.52"
 [[bench]]
 name = "benchmarks"
 harness = false
-
-[package.metadata.docs.rs]
-rustdoc-args = ["--document-private-items"]

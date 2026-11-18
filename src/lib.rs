@@ -1,5 +1,4 @@
 #![doc = include_str!("../README.md")]
-#![allow(rustdoc::private_intra_doc_links)]
 #![warn(missing_docs)]
 
 use std::mem::take;
@@ -72,6 +71,8 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
 
 /// Initializes a new storage and atomically swaps the old one with it.
 ///
+/// May return an [`Error`]. Can be used instead of [`init`].
+///
 /// # Safety
 /// The old storage is dropped by a background thread after the grace period
 /// (60 seconds by default, see [`set_grace_period`]). You must guarantee that,
@@ -103,8 +104,11 @@ pub unsafe fn reinit(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>)
     Ok(())
 }
 
-/// Initializes a new storage and atomically swaps the old one with it,
-/// leaking the latter.
+/// Initializes a new storage and atomically swaps the old one with it, leaking the latter.
+///
+/// This is useful if the translations are rarely updated and you want to avoid unsafe code.
+///
+/// May return an [`Error`]. Can be used instead of [`init`].
 pub fn reinit_leak(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
     let ptr = load(fallback, directory)?;
     STORAGE.store(ptr, Ordering::Release);
@@ -115,7 +119,7 @@ pub fn reinit_leak(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -
 /// Stores all compiled [`Template`]s for all locales along
 /// with the name of the fallback locale.
 #[derive(Debug)]
-pub struct Translations {
+struct Translations {
     fallback: Box<str>,
     locales: HashMap<Box<str>, HashMap<Box<str>, Template>>,
 }
@@ -366,7 +370,7 @@ pub trait ToArg<'a> {
     /// Converts the type reference to an [`Arg`].
     ///
     /// Must convert the referenced value to the corresponding [`Arg`] variant.
-    /// Should be marked `#[inline]` for optimization in hot loops.
+    /// Should be marked `#[inline]` for optimization.
     fn to_arg(self) -> Arg<'a>;
 }
 
@@ -399,6 +403,7 @@ impl<'a, 'c: 'a> ToArg<'a> for &'a std::borrow::Cow<'c, str> {
 }
 
 /// Blanket-implements [`ToArg`] on numeric types.
+#[doc(hidden)]
 macro_rules! impl_to_arg {
     ($($ty:ty => $field:ident, $cast:ty),* $(,)?) => {
         $(
