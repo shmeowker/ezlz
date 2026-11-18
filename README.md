@@ -309,7 +309,8 @@ a colon, start it with an empty selector:
 items: "{n|=1: item|: items: all}"
 ```
 
-Rule text cannot contain `|`, `{` or `}`.
+Rule text cannot contain unquoted `|`, `{` or `}` 
+(see [Escaping and quoting](#escaping-and-quoting)).
 
 #### Selectors
 
@@ -392,7 +393,7 @@ backtick: "{n|=1:=``one``|=``more``}"
 ## Hot reloading
 
 `reinit` loads a new set of translations and atomically swaps it in.
-This function is **unsafe**: it uses a timer to free the old storage, becuase
+This function is **unsafe**: it uses a timer to free the old storage, because
 this is the simplest way to keep the hot path as fast as possible while
 providing hot reloading with access overhead of `OnceLock`.
 Alternative methods like ArcSwap make the rendering significantly slower.

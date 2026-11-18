@@ -149,6 +149,39 @@ fn plural_names_are_validated() {
 // Errors.
 
 #[test]
+fn unquoted_opening_brace_in_rule_text_is_an_error() {
+    const MSG: &str = "unquoted { in plural rule text";
+
+    // Nested placeholders and stray braces, in a selector rule or a fallback.
+    for template in [
+        "{n|=1: {x}| y}",
+        "{n|=1: a{b| y}",
+        "{n|=1:={x}}",
+        "{n|=1: x|{y}",
+        "{n| {y}}",
+        "{n|=1: x|=2: y{}",
+        "{n|=1: {{x}}",
+    ] {
+        assert_eq!(error(template), MSG, "{template:?}");
+    }
+
+    // Quoted braces stay literal, including in the replace and fallback forms.
+    for template in [
+        "{n|=1: `{`}",
+        "{n|=1: `{x}`| y}",
+        "{n|=1:=`{x}`}",
+        "{n| `{y}`}",
+        "{n|=`{y}`}",
+        "{n|=1: a `{` b}",
+    ] {
+        assert!(Template::try_from(template).is_ok(), "{template:?} should compile");
+    }
+
+    // A `{` outside any plural placeholder is not affected.
+    assert!(Template::try_from("a {{ b {n|=1: x}").is_ok());
+}
+
+#[test]
 fn unterminated_placeholders() {
     for template in ["{x", "abc {", "{", "a{x", "{x}{y", "{x} {"] {
         assert_eq!(error(template), "unterminated placeholder", "{template:?}");

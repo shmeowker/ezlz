@@ -10,6 +10,18 @@ fn fail(name: &str, files: &[(&str, &str)]) -> Error {
 }
 
 #[test]
+fn unquoted_brace_in_plural_rule_text() {
+    for (name, content) in [
+        ("nested", "k: \"{n|=1: {x}| y}\"\n"),
+        ("stray", "k: \"{n|=1: a{b| y}\"\n"),
+    ] {
+        let err = fail(&format!("brace-{name}"), &[("en.yml", content)]);
+        assert!(matches!(err, Error::InvalidTemplate { .. }), "{name}: {err:?}");
+        assert!(err.to_string().contains("{"), "{name}: {err}");
+    }
+}
+
+#[test]
 fn error_implements_std_error() {
     fn assert_error<E: std::error::Error>() {}
     assert_error::<Error>();
