@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.0.1 (2026-11-18)
+
+### Fixed
+- Changed visibility for `Transaltions` to private.
+### Changed 
+- Private items are no longer included in docs.
+- Better docs for `reinit_leak` and a couple other items.
+
 ## v3.0.0 (2026-11-18)
 
 Compared with `ezlz` 2.0.0 and `ezlz-macros` 0.3.0.
