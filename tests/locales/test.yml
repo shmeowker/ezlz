@@ -7,17 +7,24 @@ test:
   fr: "{i|~0-1: article| articles}"
   cn: "{i| 件}"
   replace: "{i|=0:=zero|=1:=one|=2:=two|=3:=three|=4:=four|=5:=five}"
-  escape: "\\{x}"
-  escape2: "\\\\{x}"
-  escape3: "\\\\\\{x}"
-  escape4: '\{x} bar \\{x} qux \\\{x}'
+  escape: "{{x}"
+  escape2: '\{x}'
+  escape3: '\{{x}'
+  escape4: '{{x} bar \{x} qux \{{x}'
+  escape_plain: a {{x} b {x}
+  escape_block: |-
+    {{x}
+    \{x}
+  quote: "{i|=1: `{one}`|: `{many}`}"
+  quote_pipe: "{i|=1: `a | b`| c}"
+  quote_tail: "{i|=1: x}}"
 
 bench:
   literal: "Lorem ipsum dolor sit amet..."
   simple: "{x}"
   simple_x10: "{x}{x}{x}{x}{x}{x}{x}{x}{x}{x}"
   plural_en: "{x|=1: fox| foxes}"
-  plural_en_x10: "{x|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}{i|=1: fox| foxes}"
+  plural_en_x10: "{x|=1: fox| foxes}{x|=1: fox| foxes}{x|=1: fox| foxes}{x|=1: fox| foxes}{x|=1: fox| foxes}{x|=1: fox| foxes}{x|=1: fox| foxes}{x|=1: fox| foxes}{x|=1: fox| foxes}{x|=1: fox| foxes}"
   plural_fr: "{x|~0-1: article| articles}"
   plural_ru: "{x|.: стола|#11-14: столов|%1: стол|%2-4: стола| столов}"
 

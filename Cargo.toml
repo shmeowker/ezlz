@@ -20,9 +20,9 @@ exclude = [".github", ".rust-analyzer.toml", "rustfmt.toml", "Cargo.lock", ".git
 
 [dependencies]
 ahash = "0.8.12"
-ezlz-macros = { path = "ezlz_macros", version = "0.3.0" }
+ezlz-macros = { path = "ezlz_macros", version = "0.4.0" }
 itoap = "1.0.1"
-serde_yaml = "0.9"
+yaml_serde = "0.10"
 zmij = { version = "1.0.23" }
 
 [features]

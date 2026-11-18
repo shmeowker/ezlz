@@ -1,90 +1,30 @@
 #![doc = include_str!("../README.md")]
 #![allow(rustdoc::private_intra_doc_links)]
+#![warn(missing_docs)]
 
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::mem::take;
 use std::num::NonZero;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
+use std::thread;
 use std::time::Duration;
-use std::{error, fs, thread};
 
 use ahash::{HashMap, HashMapExt};
-use serde_yaml::{Value, from_str};
 
+mod error;
+mod loader;
 mod plural;
-pub use ezlz_macros::t;
+pub use error::Error;
+pub use ezlz_macros::{t, wt};
+use loader::load;
+use plural::Ruleset;
 
 /// Global localization store.
 static STORAGE: AtomicPtr<Translations> = AtomicPtr::new(null_mut());
 /// How long an old storage is kept alive in memory
 /// after calling [`reinit`], in seconds.
 static GRACE_PERIOD: AtomicU64 = AtomicU64::new(60);
-
-/// Stores all compiled [`Template`]s for all locales along
-/// with the name of the fallback locale.
-#[derive(Debug)]
-struct Translations {
-    fallback: Box<str>,
-    locales: HashMap<Box<str>, HashMap<Box<str>, Template>>,
-}
-
-/// Errors that may occur during [`init`].
-#[derive(Debug)]
-pub enum Error {
-    /// File system errors.
-    ///
-    /// Occurs if the process has no permissions
-    /// to open a file or a read operation was interrupted.
-    Io { path: PathBuf, source: std::io::Error },
-    /// YAML syntax errors.
-    ///
-    /// Occurs if a file has invalid indentation
-    /// or is not valid YAML.
-    ParseYaml { path: PathBuf, message: String },
-    /// Unexpected value type.
-    ///
-    /// Translation files must only have string values.
-    InvalidYaml { path: PathBuf, message: String },
-    /// Error during [`Template`] compilation.
-    ///
-    /// Occurs if a translation value has
-    /// unclosed or invalid placeholders.
-    InvalidTemplate { path: PathBuf, key: String, message: String },
-    /// Occurs if [`init`] is called after a successful initialization.
-    AlreadyInitialized,
-    /// Occurs if the fallback locale can't be found in the provided directory.
-    FallbackLocaleNotFound { name: String, path: PathBuf },
-    /// Occurs when multiple identical keys are encountered in one file.
-    DuplicateKey { path: PathBuf, key: String },
-    /// Occurs when multiple files with identical locale names are encountered.
-    DuplicateLocale { name: String },
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Self::Io { path, source } => write!(f, "failed to read {}: {source}", path.to_string_lossy()),
-
-            Self::ParseYaml { path, message } => write!(f, "failed to parse {}: {message}", path.to_string_lossy()),
-
-            Self::InvalidYaml { path, message } => write!(f, "invalid YAML in {}: {message}", path.to_string_lossy()),
-
-            Self::InvalidTemplate { path, key, message } =>
-                write!(f, "invalid template '{key}' in {}: {message}", path.to_string_lossy()),
-
-            Self::AlreadyInitialized => write!(f, "ezlz::init() can't be called again after a successful initialization"),
-
-            Self::FallbackLocaleNotFound { name, path } =>
-                write!(f, "fallback locale '{name}' not found in {}", path.to_string_lossy()),
-            Self::DuplicateKey { path, key } =>
-                write!(f, "key '{key}' already appears more than once in {}", path.to_string_lossy()),
-            Self::DuplicateLocale { name } => write!(f, "found more than one file for locale {name}"),
-        }
-    }
-}
-
-impl error::Error for Error {}
 
 /// Sets how long the old storage is kept alive in memory after
 /// calling [`reinit`]. This delay is 60 seconds by default.
@@ -103,7 +43,7 @@ pub fn set_grace_period(seconds: NonZero<u64>) {
 /// // and use "en" as fallback locale.
 /// ezlz::init("en", "locales").unwrap();
 ///
-/// fn get_lang() -> String {
+/// fn lang() -> String {
 ///     "ru".to_string()
 /// }
 ///
@@ -112,7 +52,7 @@ pub fn set_grace_period(seconds: NonZero<u64>) {
 /// // If the variable name matches placeholder name,
 /// // using explicit placeholder names is unnecessary:
 /// let name = "Anna";
-/// t!(get_lang(), messages.greet, name);
+/// t!(lang(), messages.greet, name);
 /// ```
 pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
     if !STORAGE.load(Ordering::Acquire).is_null() {
@@ -132,16 +72,20 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
 
 /// Initializes a new storage and atomically swaps the old one with it.
 ///
-/// The old storage will be dropped by a background thread after [`GRACE_PERIOD`] seconds.
-/// That delay can be changed with [`set_grace_period`] and is 60 seconds by default.
-///
 /// # Safety
-/// Using this is mostly safe because in normal conditions the readers only
-/// access the storage for no longer than a millisecond, however during a severe
-/// lag spike a thread can theoretically be frozen for long enough to outlive
-/// the drop timer, and in that case the behavior is undefined.
-/// You should either avoid using this completely or set the grace period to a
-/// very long duration if memory safety is crucial in your codebase.
+/// The old storage is dropped by a background thread after the grace period
+/// (60 seconds by default, see [`set_grace_period`]). You must guarantee that,
+/// by then, no thread is still inside a [`t!`] or [`wt!`] call that started
+/// before this swap. Argument expressions are evaluated before the lookup
+/// begins and do not count.
+///
+/// Such a call normally finishes in well under a millisecond, but a thread can
+/// be stalled in the middle of it: preempted, starved under heavy load, blocked
+/// on a page fault or paused by a debugger. If it resumes after the old storage
+/// was dropped, it reads freed memory, which is undefined behavior.
+///
+/// Use a grace period far longer than any stall you consider possible, or use
+/// [`reinit_leak`], which never frees the old storage and has no such requirement.
 pub unsafe fn reinit(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
     let new = load(fallback, directory)?;
     let old = STORAGE.swap(new, Ordering::AcqRel);
@@ -159,138 +103,21 @@ pub unsafe fn reinit(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>)
     Ok(())
 }
 
-/// Parses YAML files in `directory`, builds a [`Translations`] instance
-/// with `fallback` locale and returns a raw pointer to it.
-fn load(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<*mut Translations, Error> {
-    let fallback = fallback.into();
-    let directory = directory.as_ref();
-
-    let mut locales = HashMap::new();
-
-    let entries = fs::read_dir(directory).map_err(|source| Error::Io {
-        path: directory.to_path_buf(),
-        source,
-    })?;
-
-    for entry in entries {
-        let entry = entry.map_err(|source| Error::Io {
-            path: directory.to_path_buf(),
-            source,
-        })?;
-
-        let path = entry.path();
-
-        if !path.is_file() {
-            continue;
-        }
-
-        let Some(extension) = path.extension() else {
-            continue;
-        };
-
-        if extension != "yml" && extension != "yaml" {
-            continue;
-        }
-
-        let Some(locale) = path.file_stem().and_then(|s| s.to_str()) else {
-            continue;
-        };
-
-        if locales.contains_key(locale) {
-            return Err(Error::DuplicateLocale {
-                name: locale.to_string(),
-            });
-        }
-
-        let source = fs::read_to_string(&path).map_err(|source| Error::Io {
-            path: path.clone(),
-            source,
-        })?;
-
-        let yaml: Value = from_str(&source).map_err(|source| Error::ParseYaml {
-            path: path.clone(),
-            message: source.to_string(),
-        })?;
-
-        let mut translations = HashMap::<Box<str>, Template>::new();
-
-        compile_translation(&path, &yaml, String::new(), &mut translations)?;
-
-        locales.insert(Box::from(locale), translations);
-    }
-
-    if !locales.contains_key(&fallback) {
-        return Err(Error::FallbackLocaleNotFound {
-            name: fallback.to_string(),
-            path: directory.to_path_buf(),
-        });
-    }
-
-    let translations = Translations { fallback, locales };
-
-    let ptr = Box::into_raw(Box::new(translations));
-    Ok(ptr)
-}
-
-/// Recursively flattens YAML mappings into dotted translation keys
-/// and compiles each translated value into a [`Template`],
-/// inserting each key-template pair into `output`.
-fn compile_translation(
-    path: &Path,
-    value: &Value,
-    prefix: String,
-    output: &mut HashMap<Box<str>, Template>,
-) -> Result<(), Error> {
-    match value {
-        Value::Mapping(mapping) =>
-            for (key, value) in mapping {
-                let Some(key) = key.as_str() else {
-                    return Err(Error::InvalidYaml {
-                        path: path.to_path_buf(),
-                        message: "template keys must be strings".to_owned(),
-                    });
-                };
-
-                let full_key = if prefix.is_empty() {
-                    key.to_owned()
-                } else {
-                    format!("{prefix}.{key}")
-                };
-
-                compile_translation(path, value, full_key, output)?;
-            },
-
-        Value::String(value) => {
-            let template = match Template::compile(value) {
-                Ok(template) => template,
-                Err(msg) => {
-                    return Err(Error::InvalidTemplate {
-                        path: path.to_path_buf(),
-                        key: prefix,
-                        message: msg.to_string(),
-                    });
-                },
-            };
-
-            if output.contains_key(&*prefix) {
-                return Err(Error::DuplicateKey {
-                    path: path.to_path_buf(),
-                    key: prefix,
-                });
-            }
-
-            output.insert(prefix.into_boxed_str(), template);
-        },
-
-        _ => {
-            return Err(Error::InvalidYaml {
-                path: path.to_path_buf(),
-                message: format!("template value must be a string, got {value:?}"),
-            });
-        },
-    }
+/// Initializes a new storage and atomically swaps the old one with it,
+/// leaking the latter.
+pub fn reinit_leak(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
+    let ptr = load(fallback, directory)?;
+    STORAGE.store(ptr, Ordering::Release);
 
     Ok(())
+}
+
+/// Stores all compiled [`Template`]s for all locales along
+/// with the name of the fallback locale.
+#[derive(Debug)]
+pub struct Translations {
+    fallback: Box<str>,
+    locales: HashMap<Box<str>, HashMap<Box<str>, Template>>,
 }
 
 /// A compiled segment of a translation text.
@@ -304,53 +131,6 @@ enum Part {
     Plural { name: Box<str>, rules: plural::Ruleset },
 }
 
-impl Part {
-    /// Parse a placeholder from a string slice containing its body.
-    fn parse_placeholder(source: &str) -> Result<Self, &'static str> {
-        if is_identifier(source) {
-            return Ok(Self::Variable { name: source.into() });
-        }
-
-        let (name, rules) = plural::compile(source)?;
-
-        Ok(Self::Plural { name, rules })
-    }
-
-    /// Parse the first valid [`Part`] from a string slice and
-    /// return it along with the rest of that string slice.
-    fn parse_next(source: &str) -> Result<(Self, &str), &'static str> {
-        /// Checks if the byte at index `i` has an odd number of `\` bytes before it.
-        fn is_escaped(bytes: &[u8], i: usize) -> bool {
-            let backslashes = bytes[..i].iter().rev().take_while(|&&b| b == b'\\').count();
-            backslashes % 2 == 1
-        }
-
-        /// Turns the escaped `\{` sequences of a text part into plain `{`.
-        fn unescape(text: &str) -> Box<str> {
-            text.replace(r"\{", "{").into_boxed_str()
-        }
-
-        let bytes = source.as_bytes();
-
-        // Index of the first `{` that is not escaped. It is ASCII, so
-        // slicing the string at it is always on a character boundary.
-        let open = source.match_indices('{').map(|(i, _)| i).find(|&i| !is_escaped(bytes, i));
-
-        match open {
-            // The source starts with a placeholder.
-            Some(0) => {
-                let end = source[1..].find('}').map(|end| 1 + end).ok_or("unclosed placeholder")?;
-                let part = Self::parse_placeholder(&source[1..end])?;
-                Ok((part, &source[end + 1..]))
-            },
-            // Text up to the next placeholder.
-            Some(i) => Ok((Self::Text(unescape(&source[..i])), &source[i..])),
-            // Only text is left.
-            None => Ok((Self::Text(unescape(source)), "")),
-        }
-    }
-}
-
 /// A compiled representation of a translation value.
 #[derive(Debug)]
 struct Template {
@@ -358,50 +138,110 @@ struct Template {
     parts: Box<[Part]>,
     /// Estimated size of a rendered template.
     ///
-    /// Calculated in [`Template::compile`].
+    /// It is calculated during parsing.
     /// Used as the size of the string buffer in [`Template::render`].
     bufsize: usize,
 }
 
-impl Template {
-    /// Estimated size of a placeholder's rendered value.
-    const ESTIMATED_ARG_LEN: usize = 32;
+impl TryFrom<&str> for Template {
+    type Error = &'static str;
 
-    /// Parse a translation string and compile its segments
-    /// into a list of [`Part`]s.
-    ///
-    /// Calculates the approximate size of the rendered template by
-    /// adding the total size of text parts to the number of placeholders
-    /// multiplied by [`Template::ESTIMATED_ARG_LEN`].
-    fn compile(translation: &str) -> Result<Self, &'static str> {
-        let mut parts = Vec::new();
-        let mut source = translation;
+    fn try_from(src: &str) -> Result<Self, Self::Error> {
+        #[derive(PartialEq, Eq)]
+        enum State {
+            Text,
+            Ident,
+        }
+
+        let mut out = Vec::new();
+        let mut state = State::Text;
+        let mut iter = src.chars().peekable();
+        let mut buf = String::new();
         let mut bufsize = 0;
 
-        while !source.is_empty() {
-            let (part, rest) = Part::parse_next(source)?;
+        while let Some(c) = iter.next() {
+            match state {
+                State::Text => match c {
+                    '{' => {
+                        if iter.peek() == Some(&'{') {
+                            buf.push('{');
+                            bufsize += 1;
+                            iter.next();
+                            continue;
+                        }
 
-            match &part {
-                Part::Text(text) => bufsize += text.len(),
-                Part::Variable { .. } | Part::Plural { .. } => {
-                    bufsize += Self::ESTIMATED_ARG_LEN;
+                        if !buf.is_empty() {
+                            let text = take(&mut buf).into_boxed_str();
+                            let part = Part::Text(text);
+                            out.push(part);
+                        }
+
+                        state = State::Ident;
+                    },
+
+                    _ => {
+                        bufsize += c.len_utf8();
+                        buf.push(c);
+                    },
+                },
+
+                State::Ident => match c {
+                    '}' => {
+                        if !is_identifier(&buf) {
+                            return Err("invalid placeholder identifier");
+                        }
+
+                        let name = take(&mut buf).into_boxed_str();
+                        let part = Part::Variable { name };
+                        bufsize += Self::ESTIMATED_VAR_LEN;
+                        out.push(part);
+                        state = State::Text;
+                    },
+
+                    '|' => {
+                        if !is_identifier(&buf) {
+                            return Err("invalid plural placeholder identifier");
+                        }
+
+                        let rules = Ruleset::try_from(&mut iter)?;
+                        let name = take(&mut buf).into_boxed_str();
+                        let part = Part::Plural { name, rules };
+
+                        bufsize += Self::ESTIMATED_VAR_LEN;
+                        out.push(part);
+                        state = State::Text;
+                    },
+
+                    _ => buf.push(c),
                 },
             }
+        }
 
-            parts.push(part);
-            source = rest;
+        if state != State::Text {
+            return Err("unterminated placeholder");
+        }
+
+        if !buf.is_empty() {
+            let text = take(&mut buf).into_boxed_str();
+            let part = Part::Text(text);
+            out.push(part);
         }
 
         Ok(Self {
-            parts: parts.into_boxed_slice(),
+            parts: out.into_boxed_slice(),
             bufsize,
         })
     }
+}
+
+impl Template {
+    /// Estimated size of a placeholder's rendered value.
+    const ESTIMATED_VAR_LEN: usize = 32;
 
     /// Renders a template into a new [`String`] and returns it.
     fn render(&self, args: &[(&str, Arg<'_>)]) -> String {
         let mut output = String::with_capacity(self.bufsize);
-        self.render_to(args, &mut output);
+        self.render_to(&mut output, args);
 
         output
     }
@@ -409,8 +249,8 @@ impl Template {
     /// Iterates over the [`Part`]s of a template and
     /// renders each part in a way corresponding to its
     /// variant into the `output` buffer.
-    #[inline]
-    fn render_to(&self, args: &[(&str, Arg<'_>)], output: &mut String) {
+    #[inline(always)]
+    fn render_to(&self, output: &mut String, args: &[(&str, Arg<'_>)]) {
         /// Find an [`Arg`] by its `name` in a list of `args`.
         #[inline]
         fn find_arg<'a>(args: &'a [(&str, Arg<'a>)], name: &str) -> Option<&'a Arg<'a>> {
@@ -419,9 +259,7 @@ impl Template {
 
         for part in self.parts.iter() {
             match part {
-                Part::Text(text) => {
-                    output.push_str(text);
-                },
+                Part::Text(text) => output.push_str(text),
 
                 Part::Variable { name } =>
                     if let Some(arg) = find_arg(args, name) {
@@ -591,10 +429,41 @@ impl_to_arg!(
     f64   => Float64, f64,
 );
 
-/// Used by the [`t!`] proc-macro to convert a
+/// Attempts to get the requested template from the requested locale and,
+/// if not found, fallback locale.
+///
+/// Panics if the storage is not initialized.
+#[inline(always)]
+fn fetch_template(locale: &str, key: &str) -> Option<&'static Template> {
+    let storage = unsafe { STORAGE.load(Ordering::Acquire).as_ref() }.expect("ezlz::init() must be called before using t!");
+
+    storage
+        .locales
+        .get(locale)
+        .and_then(|locale| locale.get(key))
+        .or_else(|| storage.locales.get(&storage.fallback).and_then(|locale| locale.get(key)))
+}
+
+/// Defines the missing key render behavior.
+///
+/// Panics if a translation doesn't exist in either the requested or fallback
+/// locale, unless the `stringify-missing-keys` feature is enabled, in which case
+/// it returns the translation key.
+#[cold]
+fn missing_key(locale: &str, key: &str) -> String {
+    #[cfg(feature = "stringify-missing-keys")]
+    {
+        let _ = locale;
+        key.to_string()
+    }
+    #[cfg(not(feature = "stringify-missing-keys"))]
+    panic!("translation '{key}' not found in locale '{locale}' and fallback locale");
+}
+
+/// Used by the proc-macros to convert a
 /// compatible input to an [`Arg`].
 #[doc(hidden)]
-#[inline]
+#[inline(always)]
 pub fn __arg<'a, T>(value: &'a T) -> Arg<'a>
 where
     T: ?Sized,
@@ -603,155 +472,27 @@ where
     value.to_arg()
 }
 
-/// Generated in place of the [`t!`] proc-macro.
-///
-/// Panics if [`init`] has not been called.
-///
-/// Panics if a translation doesn't exist in either the requested or fallback
-/// locale, unless the `stringify-missing-keys` feature is enabled, in which case
-/// it returns the translation key.
+/// Renders the requested template into a new [`String`] and returns it.
 #[doc(hidden)]
 pub fn __get(locale: &str, key: &str, args: &[(&str, Arg<'_>)]) -> String {
-    let storage = unsafe { STORAGE.load(Ordering::Acquire).as_ref() }.expect("ezlz::init() must be called before using t!");
+    match fetch_template(locale, key) {
+        Some(template) => template.render(args),
+        None => missing_key(locale, key),
+    }
+}
 
-    let template = storage
-        .locales
-        .get(locale)
-        .and_then(|locale| locale.get(key))
-        .or_else(|| storage.locales.get(&storage.fallback).and_then(|locale| locale.get(key)));
-
-    match template {
-        Some(translation) => translation.render(args),
-        None => {
-            #[cfg(feature = "stringify-missing-keys")]
-            return key.to_string();
-            #[cfg(not(feature = "stringify-missing-keys"))]
-            panic!("translation '{key}' not found in locale '{locale}' and fallback locale");
+/// Renders the requested template into the `output` buffer.
+#[doc(hidden)]
+pub fn __write(output: &mut String, locale: &str, key: &str, args: &[(&str, Arg<'_>)]) {
+    match fetch_template(locale, key) {
+        Some(template) => {
+            output.reserve(template.bufsize);
+            template.render_to(output, args);
         },
+        None => output.push_str(&missing_key(locale, key)),
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn render(template: &str, args: &[(&str, Arg)]) -> String {
-        Template::compile(template).unwrap().render(args)
-    }
-
-    #[test]
-    fn identifiers() {
-        for valid in ["x", "_", "_x", "x1", "X", "a_b_c", "1"] {
-            assert!(is_identifier(valid), "{valid:?}");
-        }
-        for invalid in ["", " ", "a b", "a-b", "a.b", "é", "x|y", "{x}", "a\n"] {
-            assert!(!is_identifier(invalid), "{invalid:?}");
-        }
-    }
-
-    #[test]
-    fn text_and_placeholders() {
-        assert_eq!(render("", &[]), "");
-        assert_eq!(render("plain", &[]), "plain");
-        assert_eq!(render("{x}", &[("x", Arg::Int(1))]), "1");
-        assert_eq!(render("a{x}b{y}c", &[("x", Arg::Int(1)), ("y", Arg::String("z"))]), "a1bzc");
-        assert_eq!(render("{x}{x}", &[("x", Arg::Uint(7))]), "77");
-        assert_eq!(render("é{x}ü 你好{x}🎉", &[("x", Arg::Int(1))]), "é1ü 你好1🎉");
-    }
-
-    #[test]
-    fn stray_closing_brace_is_text() {
-        assert_eq!(render("a}b", &[]), "a}b");
-        assert_eq!(render("}{x}}", &[("x", Arg::Int(1))]), "}1}");
-    }
-
-    #[test]
-    fn escapes() {
-        let x = [("x", Arg::String("v"))];
-        // An odd number of backslashes escapes the brace and removes one backslash.
-        assert_eq!(render(r"\{x}", &x), "{x}");
-        assert_eq!(render(r"a \{x} b", &x), "a {x} b");
-        assert_eq!(render(r"\\\{x}", &x), r"\\{x}");
-        // An even number leaves the placeholder active and keeps every backslash.
-        assert_eq!(render(r"\\{x}", &x), r"\\v");
-        assert_eq!(render(r"\\\\{x}", &x), r"\\\\v");
-        // Backslashes elsewhere are plain text.
-        assert_eq!(render(r"a\b", &x), r"a\b");
-        assert_eq!(render(r"\", &x), r"\");
-        assert_eq!(render(r"{x}\", &x), r"v\");
-        assert_eq!(render(r"{x}\{x}", &x), r"v{x}");
-        assert_eq!(render(r"\{\{", &x), "{{");
-        assert_eq!(render(r"é\{x}", &x), "é{x}");
-    }
-
-    #[test]
-    fn compile_errors() {
-        for (template, message) in [
-            ("{x", "unclosed placeholder"),
-            ("abc {", "unclosed placeholder"),
-            ("{", "unclosed placeholder"),
-            ("{}", "invalid plural placeholder identifier"),
-            ("{ x }", "invalid plural placeholder identifier"),
-            ("{n|?: x}", "invalid plural rule selector operator"),
-            ("{n|=5-1: x}", "selector range lower bound is greater than its upper bound"),
-        ] {
-            assert_eq!(Template::compile(template).unwrap_err(), message, "{template:?}");
-        }
-        // A closing brace can never be escaped: the first `}` always ends the placeholder.
-        assert_eq!(
-            Template::compile(r"{x\}}").unwrap_err(),
-            "invalid plural placeholder identifier"
-        );
-    }
-
-    #[test]
-    fn buffer_size_estimate() {
-        assert_eq!(Template::compile("").unwrap().bufsize, 0);
-        assert_eq!(Template::compile("abc").unwrap().bufsize, 3);
-        assert_eq!(Template::compile("abc{x}").unwrap().bufsize, 3 + Template::ESTIMATED_ARG_LEN);
-        assert_eq!(
-            Template::compile("{x}{n|=1: a| b}").unwrap().bufsize,
-            2 * Template::ESTIMATED_ARG_LEN
-        );
-    }
-
-    #[test]
-    fn abs_trunc() {
-        assert_eq!(Arg::Int(-5).abs_trunc(), 5);
-        assert_eq!(Arg::Int(i64::MIN).abs_trunc(), 1 << 63);
-        assert_eq!(Arg::Uint(u64::MAX).abs_trunc(), u64::MAX);
-        assert_eq!(Arg::Float64(-1.9).abs_trunc(), 1);
-        assert_eq!(Arg::Float64(0.99).abs_trunc(), 0);
-        assert_eq!(Arg::Float32(-2.5).abs_trunc(), 2);
-        assert_eq!(Arg::Float64(f64::NAN).abs_trunc(), 0);
-        assert_eq!(Arg::Float64(f64::INFINITY).abs_trunc(), u64::MAX);
-        assert_eq!(Arg::Float32(f32::NEG_INFINITY).abs_trunc(), u64::MAX);
-        assert_eq!(Arg::Float64(-0.0).abs_trunc(), 0);
-    }
-
-    #[test]
-    fn writing_values() {
-        fn write(arg: Arg) -> String {
-            let mut output = String::new();
-            arg.write_to(&mut output);
-            output
-        }
-        assert_eq!(write(Arg::Int(-7)), "-7");
-        assert_eq!(write(Arg::Uint(7)), "7");
-        assert_eq!(write(Arg::Float64(1.5)), "1.5");
-        assert_eq!(write(Arg::Float32(1.1)), "1.1");
-        assert_eq!(write(Arg::Float64(f64::from(1.1_f32))), "1.100000023841858");
-        assert_eq!(write(Arg::String("é")), "é");
-    }
-
-    #[test]
-    fn to_arg_conversions() {
-        assert_eq!(__arg(&-3_i8), Arg::Int(-3));
-        assert_eq!(__arg(&3_u16), Arg::Uint(3));
-        assert_eq!(__arg(&usize::MAX), Arg::Uint(usize::MAX as u64));
-        assert_eq!(__arg(&1.5_f32), Arg::Float32(1.5));
-        assert_eq!(__arg(&1.5_f64), Arg::Float64(1.5));
-        assert_eq!(__arg(&"s"), Arg::String("s"));
-        assert_eq!(__arg(&String::from("s")), Arg::String("s"));
-    }
-}
+#[path = "../unit_tests/lib_tests.rs"]
+mod tests;

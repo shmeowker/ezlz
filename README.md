@@ -15,9 +15,8 @@ functionality is not required.
 
 ### Features
 
-- **Fast**: Translations are compiled into RAM ahead of time. A single-placeholder
-  render takes roughly 50-90 ns on a mid-range phone CPU
-  (see [Benchmarks](#benchmarks)).
+- **Fast**: Translations are compiled into RAM ahead of time.
+  See [Benchmarks](#benchmarks).
 - **Simple**: The basic API is one function (`init`) and one macro (`t!`).
 - **Pluralization**: Plural rules are compiled from placeholder syntax.
 - **Hot reloading**: Translations can be swapped at runtime with the
@@ -66,12 +65,12 @@ fn main() {
     assert_eq!(t!("fr", messages.hello, name), "Bonjour, Anna!");
     assert_eq!(t!("en", messages.items, n), "You have 4 items.");
 
-    let text = t!(current_locale(), messages.items, n);
-    assert_eq!(text, "У тебя 4 предмета.");
+    let text = t!(lang(), messages.items, n = 6);
+    assert_eq!(text, "У тебя 6 предметов.");
 }
 
-fn current_locale() -> String {
-    "ru".to_owned()
+fn lang() -> String {
+    String::from("ru")
 }
 ```
 
@@ -110,7 +109,7 @@ t!(lang, foo.bar.qux);
 ```
 
 Every leaf value must be a **string**. Numbers, booleans, `null` (including an
-empty file) and sequences are rejected by `init` with an error, so quote
+empty file) and sequences are rejected with an error, so quote
 values like `"404"` or `"true"`.
 
 The flattened keys must be unique: defining `a.b` both directly and as
@@ -147,22 +146,38 @@ only to the configured fallback locale.
 | Variant                  | Cause                                                            |
 | ------------------------ | ---------------------------------------------------------------- |
 | `Io`                     | The directory or a file could not be read.                       |
-| `ParseYaml`              | A file is not valid YAML.                                        |
-| `InvalidYaml`            | A key is not a string, or a value is not a string (see above).   |
+| `Parse`                  | A file has invalid syntax.                                       |
+| `Value`                  | A key is not a string, or a value is not a string (see above).   |
 | `InvalidTemplate`        | A translation has an unclosed or invalid placeholder.            |
 | `AlreadyInitialized`     | `init` was called after a successful initialization.             |
 | `FallbackLocaleNotFound` | No file for the fallback locale was found in the directory.      |
 | `DuplicateKey`           | The same flattened translation key is defined twice in one file. |
 | `DuplicateLocale`        | Two files (`en.yml` and `en.yaml`) define the same locale.       |
 
-Calling `t!` before a successful `init` panics.
+Calling `t!` or `wt!` before a successful `init` panics.
 
-## The `t!` macro
+## The `t!` and `wt!` macros
 
 Usage:
 
 ```text
 t!(<locale>, <key>[, arguments...])
+```
+
+```text
+wt!(<output>, <locale>, <key>[, arguments...])
+```
+
+The only difference is that `t!` returns a `String`,
+and `wt!` writes into a `&mut String`.
+
+### Output
+
+Output parameter for `wt!` must be a mutable reference to `String`.
+
+```rust ignore
+let mut buf = String::with_capacity(256);
+wt!(&mut buf, "de", foo.text);
 ```
 
 ### Locale
@@ -232,34 +247,8 @@ Plural placeholder:
 items: "You have {items|=1: item| items}."
 ```
 
-Escaping:
-
-```yaml
-escape: '\{not a placeholder}'
-double: 'but \\{this} is still a placeholder'
-```
-
 Placeholder names must not be empty and may contain only ASCII letters, digits and `_`.
 You can have multiple placeholders in a template, and names can repeat.
-
-### Escaping
-
-A backslash escapes `{` only when it is directly in front of it:
-
-- `\{` renders as a literal `{` (the backslash is removed) and does not
-  start a placeholder.
-- Backslashes anywhere else are plain text and are kept as they are.
-- If `{` is preceded by an **even** number of backslashes, it starts a
-  placeholder and **all** of those backslashes are kept in the output,
-  so `\\{name}` renders as `\\Anna`. There is currently no way to render a
-  single backslash directly in front of a placeholder.
-
-In YAML, `\{` is an invalid escape sequence in double-quoted strings.
-Use single quotes (`'\{x}'`), or double the backslash (`"\\{x}"`).
-
-Placeholders cannot be nested, and the first `}` always closes a placeholder,
-so plural rule text cannot contain `}`. A stray `}` outside a placeholder is
-plain text.
 
 ### Supported types
 
@@ -308,9 +297,8 @@ If rule text starts with `=`, the rendered number is replaced
 instead of prepended. If a plural placeholder receives a non-numeric
 value it renders only the value itself and returns without rule matching.
 
-Range bounds are written as unsigned decimal integers up to `255` (`255` is
-reserved internally and acts as "no upper bound", which is irrelevant for
-real plural rules); values like `=1000` are rejected at initialization.
+Range bounds are written as unsigned decimal integers up to `254`.
+Values above that are rejected at initialization.
 Because the bounds are small, use `#` or `%` to match numbers by their last digits.
 
 Each rule is split only once, at its first `:`, so rule text may itself contain
@@ -321,7 +309,8 @@ a colon, start it with an empty selector:
 items: "{n|=1: item|: items: all}"
 ```
 
-Rule text cannot contain `|` or `}`.
+Rule text cannot contain unquoted `|`, `{` or `}` 
+(see [Escaping and quoting](#escaping-and-quoting)).
 
 #### Selectors
 
@@ -362,29 +351,79 @@ ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
 ```
 
 A rule that has a leading `=` in the text will replace the number:
+
 ```yaml
 count: "{n|=0:=no items|=1:=one item| items}"
 ```
 
+### Escaping and quoting
+
+Curly braces open and close placeholders, and characters such as `|` and `:`
+mark up the ruleset sequence in plural placeholders, so if you need to use these
+as literals, you must follow the escaping and quoting rules.
+
+In regular text, `{{` folds into a literal `{`.
+Braces are read from left to right, so a sequence of `n` braces gives `n / 2`
+literal braces, and if `n` is odd, the last one opens a placeholder.
+
+```yaml
+# name = "Jake"
+
+escape: "{{name}" # {name}
+prefix: "{{{name}" # {Jake
+suffix: "{name}}" # Jake}
+surround: "{{{name}}" # {Jake}
+```
+
+In plural placeholders, the rule markup characters that are wanted to be displayed
+as literals in rule text must be quoted in backticks.
+Two consecutive backticks fold into a single one.
+
+```yaml
+# n = 1: "1 {one}",  n = 2: "2 {many}"
+braces: "{n|=1: `{one}`|: `{many}`}"
+
+# n = 1: "1 a | b", n = 2: "2 c"
+pipe: "{n|=1: `a | b`| c}"
+
+# n = 1: "`one`", n = 2: "`more`"
+backtick: "{n|=1:=``one``|=``more``}"
+```
+
 ## Hot reloading
 
-`reinit` loads a new set of translations and atomically swaps it in:
+`reinit` loads a new set of translations and atomically swaps it in.
+This function is **unsafe**: it uses a timer to free the old storage, because
+this is the simplest way to keep the hot path as fast as possible while
+providing hot reloading with access overhead of `OnceLock`.
+Alternative methods like ArcSwap make the rendering significantly slower.
 
 ```rust no_run
-// SAFETY: translation lookups are short-lived, see below.
 unsafe { ezlz::reinit("en", "locales").unwrap(); }
 ```
 
-The previous translations are not freed immediately. A background thread
-drops them after the grace period. Using this is mostly safe because in normal conditions
-the readers only access the storage for no longer than a millisecond, however
-during a severe lag spike a thread can theoretically be frozen for long enough
-to outlive the drop timer, and in that case the behavior is undefined.
-You should either avoid using this completely or set the grace period to a 
-very long duration if memory safety is crucial in your codebase.
-If the new translations fail to load, the old ones stay in place and an `Error` is returned.
-`reinit` also works as an initial `init`. The grace period is 60 seconds by default, configurable with
-`set_grace_period`.
+### Safety
+
+The old storage is dropped by a background thread after the grace period
+(60 seconds by default). You must guarantee that, by then, no thread is still
+inside a [`t!`] or [`wt!`] call that started before this swap. Argument
+expressions are evaluated before the lookup begins and do not count.
+
+Such a call normally finishes in well under a millisecond, but a thread can
+be stalled in the middle of it: preempted, starved under heavy load, blocked
+on a page fault or paused by a debugger. If it resumes after the old storage
+was dropped, it reads freed memory, which is undefined behavior.
+
+Use a grace period far longer than any stall you consider possible, or use safe
+`reinit_leak`, which never frees the old storage and has no such requirement.
+
+### Grace period
+
+The grace period is in seconds and must be non-zero, because dropping the old
+translations immediately will cause undefined behavior if any renderer
+was running at that moment.
+
+It can be changed with `set_grace_period`:
 
 ```rust no_run
 use std::num::NonZero;
@@ -393,9 +432,6 @@ use std::num::NonZero;
 let delay = NonZero::new(1200).unwrap();
 ezlz::set_grace_period(delay);
 ```
-
-The delay must be non-zero because dropping the old translations immediately
-will almost certainly cause severe undefined behavior.
 
 ## How it works
 
@@ -416,7 +452,7 @@ will almost certainly cause severe undefined behavior.
 
 ### Runtime lookup
 
-1. `t!` expands to a call that passes the locale, hardcoded translation key,
+1. `t!` (or `wt!`) expands to a call that passes the locale, hardcoded translation key,
    and converted arguments to the runtime lookup function.
 2. Look up the `Template` by key in the requested locale. If it is not found,
    try the same key in the fallback locale. Panic if it is not found there either.
@@ -424,7 +460,7 @@ will almost certainly cause severe undefined behavior.
    directly to the output buffer, while regular and plural placeholders look up their
    arguments (by a linear search over the few passed arguments) and render them into
    the same buffer.
-4. Return the resulting `String`.
+4. Return the resulting `String` in case `t!` was used.
 
 ### Summary
 
@@ -447,21 +483,22 @@ Benchmarks were run in the following conditions:
 
 Results:
 
-| Benchmark          | Description            | Average |
-| ------------------ | ---------------------- | ------: |
-| `text`             | No placeholders        |   47 ns |
-| `simple`           | Single integer         |   50 ns |
-| `simple<-string`   | Single string          |   50 ns |
-| `simple<-float`    | Single float           |   67 ns |
-| `simple (x10)`     | 10 integers            |  109 ns |
-| `plural_en`        | English integer plural |   60 ns |
-| `plural_en<-float` | English float plural   |   79 ns |
-| `plural_en (x10)`  | 10 plural integers     |   99 ns |
-| `plural_fr<-float` | French float plural    |   79 ns |
-| `plural_ru`        | Russian integer plural |   64 ns |
-| `plural_ru<-float` | Russian float plural   |   78 ns |
+| Benchmark          | Description            |   `t!` |  `wt!` |
+| ------------------ | ---------------------- | -----: | -----: |
+| `text`             | No placeholders        |  46 ns |  32 ns |
+| `simple`           | Single integer         |  51 ns |  40 ns |
+| `simple<-string`   | Single string          |  51 ns |  40 ns |
+| `simple<-float`    | Single float           |  70 ns |  59 ns |
+| `simple (x10)`     | 10 integers            | 114 ns | 101 ns |
+| `plural_en`        | English integer plural |  59 ns |  53 ns |
+| `plural_en<-float` | English float plural   |  79 ns |  70 ns |
+| `plural_en (x10)`  | 10 plural integers     | 186 ns | 173 ns |
+| `plural_fr<-float` | French float plural    |  79 ns |  69 ns |
+| `plural_ru`        | Russian integer plural |  64 ns |  56 ns |
+| `plural_ru<-float` | Russian float plural   |  79 ns |  67 ns |
 
-Every call allocates and returns one `String`, so the allocator matters.
+Every `t!` call allocates and returns one `String`, so the allocator matters.
+Calling `wt!` writes to an already existing buffer, skipping the initial allocation.
 
 ### Running the benchmarks
 
@@ -480,9 +517,10 @@ Rust 1.85 (the first release with edition 2024).
 ## Development
 
 ```bash
-cargo test --workspace                              # default features
+cargo test --workspace
 cargo test --workspace --all-features
 cargo clippy --workspace --all-targets --all-features
+cargo fmt --all --check
 ```
 
 Because the translation store is global and `init` succeeds once per process,
@@ -494,20 +532,20 @@ Internals are covered by unit tests in `src/lib.rs` and `src/plural.rs`.
 
 ## Cargo features
 
-| Feature                  | Description                                                                |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `stringify-missing-keys` | `t!` returns the translation key instead of panicking when it isn't found. |
-| `fast-floats`            | Renders floats without checking for NaN and infinity (see below).          |
+> Cargo features are additive: if any crate in a dependency tree enables one, it is enabled for all of them.
+
+| Feature                  | Description                                                       |
+| ------------------------ | ----------------------------------------------------------------- |
+| `stringify-missing-keys` | A missing translation key is stringified instead of panicking.    |
+| `fast-floats`            | Renders floats without checking for NaN and infinity (see below). |
 
 ### `fast-floats`
 
 By default, floats are formatted with `zmij::Buffer::format`, which prints `NaN`,
 `inf` and `-inf` for non-finite values. With `fast-floats`, `Buffer::format_finite`
 is used instead, which skips that check and is slightly faster. The catch is that
-for NaN and infinity it prints an **unspecified number** (for example NaN renders as
-`2.696539702293474e+308`) instead of failing, so enable it only if your floats are
-always finite. Cargo features are additive: if any crate in a dependency tree enables
-it, it is enabled for all of them.
+for NaN and infinities it prints an **unspecified number** (for example NaN renders as
+`2.696539702293474e+308`), so enable it only if your floats are always finite.
 
 ## License
 

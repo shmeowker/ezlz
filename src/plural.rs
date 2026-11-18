@@ -1,9 +1,13 @@
-//! This module handles the parsing, compilation and rendering
-//! of plural placeholders.
-use crate::{Arg, is_identifier};
+//! This module handles the parsing, compilation and rendering of plural placeholders.
 
-/// Selector operator for [`Rule`]s.
-#[derive(Debug, PartialEq)]
+use std::iter::Peekable;
+use std::mem::take;
+use std::str::Chars;
+
+use crate::Arg;
+
+/// An operator for [`Selector`]s.
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 enum Op {
     // The `.` selector.
@@ -37,30 +41,34 @@ impl TryFrom<u8> for Op {
     }
 }
 
-/// A plural rule.
-#[derive(Debug)]
-struct Rule {
+/// Selector for a plural [`Rule`].
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct Selector {
     /// The selector operator.
     op: Op,
     /// Range lower bound.
     lo: u8,
     /// Range upper bound.
     hi: u8,
-    /// The text value of the rule.
-    text: Box<str>,
-    /// Replacement flag.
-    ///
-    /// Indicates that this rule is supposed to replace the
-    /// number instead of appending to it.
-    replace: bool,
 }
 
-impl Rule {
-    /// Matches the rule against the absolute truncated integer
-    /// numeric value of an [`Arg`] according to the value of
-    /// [`Rule::op`].
+impl Selector {
+    const FALLBACK: Self = Self {
+        op: Op::Fallback,
+        lo: u8::MAX,
+        hi: u8::MAX,
+    };
+    const FLOAT: Self = Self {
+        op: Op::Float,
+        lo: u8::MAX,
+        hi: u8::MAX,
+    };
+
+    /// Matches the selector against the absolute truncated integer
+    /// numeric value of an [`Arg`] according to [`Self::op`].
     ///
     /// See the Pluralization section of README.md for details.
+    #[inline]
     fn matches(&self, n: &Arg) -> bool {
         let i = n.abs_trunc();
         let x = match self.op {
@@ -73,7 +81,7 @@ impl Rule {
         if n.is_float() && self.op != Op::FloatRange {
             return false;
         }
-        if self.hi == !0 {
+        if self.hi == u8::MAX {
             self.lo as u64 <= x
         } else {
             self.lo as u64 <= x && x <= self.hi as u64
@@ -81,7 +89,21 @@ impl Rule {
     }
 }
 
-/// The plural rules of a plural placeholder.
+/// A plural rule.
+#[derive(Debug)]
+struct Rule {
+    /// The rule selector.
+    sel: Selector,
+    /// The text value of the rule.
+    text: Box<str>,
+    /// Replacement flag.
+    ///
+    /// Indicates that this rule is supposed to replace the
+    /// number instead of appending to it.
+    replace: bool,
+}
+
+/// The ruleset of a plural placeholder.
 #[derive(Debug)]
 pub(crate) struct Ruleset {
     /// The list of compiled [`Rule`]s.
@@ -89,24 +111,18 @@ pub(crate) struct Ruleset {
 }
 
 impl Ruleset {
-    /// Returns the first [`Rule`] that matches a number.
-    #[inline]
-    fn select(&self, n: &Arg) -> Option<&Rule> {
-        self.rules.iter().find(|r| r.matches(n))
-    }
-
     /// Renders a [`Rule`] matching the value of an [`Arg`].
     ///
     /// The rendered strings are written directly to the `output` buffer.
     /// If the provided [`Arg`] is not numeric, writes it as is and aborts.
     pub fn render(&self, output: &mut String, arg: &Arg<'_>) {
         if !arg.is_numeric() {
-            arg.write_to(&mut *output);
+            arg.write_to(output);
             return;
         }
 
-        let Some(rule) = self.select(arg) else {
-            arg.write_to(&mut *output);
+        let Some(rule) = self.rules.iter().find(|r| r.sel.matches(arg)) else {
+            arg.write_to(output);
             return;
         };
 
@@ -115,222 +131,132 @@ impl Ruleset {
             return;
         }
 
-        arg.write_to(&mut *output);
+        arg.write_to(output);
         output.push_str(&rule.text);
     }
 }
 
-/// Parses a plural rule selector.
-///
-/// Returns 3 values corresponding to
-/// [`Rule::op`], [`Rule::lo`] and [`Rule::hi`]
-/// or an error message if the selector is invalid.
-fn parse_selector(body: &str) -> Result<(Op, u8, u8), &'static str> {
-    if body.is_empty() {
-        return Ok((Op::Fallback, !0, !0));
-    }
-    if body == "." {
-        return Ok((Op::Float, !0, !0));
-    }
+impl TryFrom<&mut Peekable<Chars<'_>>> for Ruleset {
+    type Error = &'static str;
 
-    let bytes = body.as_bytes();
-    let op = Op::try_from(bytes[0])?;
-
-    if op == Op::Float {
-        return Err("the `.` selector does not take a range");
-    }
-
-    let Ok(range) = std::str::from_utf8(&bytes[1..]) else {
-        return Err("invalid UTF-8 in rule selector range body");
-    };
-
-    if let Some(lo) = range.strip_suffix('+') {
-        let Ok(lo) = lo.parse::<u8>() else {
-            return Err("invalid rule selector open range bound");
-        };
-        return Ok((op, lo, !0));
-    }
-
-    if let Some((lo, hi)) = range.split_once('-') {
-        let Ok(lo) = lo.parse::<u8>() else {
-            return Err("invalid rule selector range lower bound");
-        };
-        let Ok(hi) = hi.parse::<u8>() else {
-            return Err("invalid rule selector range upper bound");
-        };
-        return Ok((op, lo, hi));
-    };
-
-    let Ok(n) = range.parse::<u8>() else {
-        return Err("invalid rule selector range");
-    };
-
-    Ok((op, n, n))
-}
-
-/// Compiles a plural placeholder from a string slice containing its body.
-///
-/// On success, returns the identifier and a compiled [`Ruleset`].
-/// Returns an error message if the provided string slice doesn't contain
-/// a valid plural placeholder body.
-pub(crate) fn compile(input: &str) -> Result<(Box<str>, Ruleset), &'static str> {
-    let mut parts = input.split('|');
-
-    let Some(name) = parts.next() else {
-        return Err("placeholder without an identifier");
-    };
-    if !is_identifier(name) {
-        return Err("invalid plural placeholder identifier");
-    }
-
-    let mut rules = Vec::new();
-
-    for part in parts {
-        let (op, lo, hi, text) = if let Some((sel, text)) = part.split_once(':') {
-            let (op, lo, hi) = parse_selector(sel)?;
-            (op, lo, hi, text)
-        } else {
-            (Op::Fallback, !0, !0, part)
-        };
-
-        if lo > hi {
-            return Err("selector range lower bound is greater than its upper bound");
+    fn try_from(iter: &mut Peekable<Chars<'_>>) -> Result<Self, Self::Error> {
+        #[derive(Clone, Copy, PartialEq)]
+        enum State {
+            MaybeSel,
+            Text,
+            Escaped,
         }
 
-        let replace = text.starts_with('=');
-        let text = if replace { Box::from(&text[1..]) } else { Box::from(text) };
+        let mut out = Vec::new();
+        let mut state = State::MaybeSel;
+        let mut selector = None;
+        let mut replace = false;
+        let mut buf = String::new();
 
-        rules.push(Rule {
-            op,
-            lo,
-            hi,
-            text,
-            replace,
-        });
+        while let Some(c) = iter.next() {
+            match (state, c) {
+                (State::Escaped, '`') => state = State::Text,
+                (State::Escaped, _) => buf.push(c),
+
+                (_, '`') =>
+                    if iter.next_if_eq(&'`').is_some() {
+                        buf.push('`');
+                    } else {
+                        state = State::Escaped;
+                    },
+
+                (State::MaybeSel, ':') => {
+                    selector = Some(Selector::try_from(&*buf)?);
+                    buf.clear();
+                    replace = iter.next_if_eq(&'=').is_some();
+                    state = State::Text;
+                },
+
+                (_, '|' | '}') => {
+                    let mut text = take(&mut buf);
+
+                    // A rule without a `:` is a fallback, its text may start with the marker.
+                    if state == State::MaybeSel && text.starts_with('=') {
+                        text.remove(0);
+                        replace = true;
+                    }
+
+                    let sel = selector.take().unwrap_or(Selector::FALLBACK);
+
+                    out.push(Rule {
+                        sel,
+                        text: text.into_boxed_str(),
+                        replace: take(&mut replace),
+                    });
+
+                    if c == '}' {
+                        return Ok(Self {
+                            rules: out.into_boxed_slice(),
+                        });
+                    }
+
+                    state = State::MaybeSel;
+                },
+
+                (State::MaybeSel | State::Text, '{') => return Err("unquoted { in plural rule text"),
+
+                _ => buf.push(c),
+            }
+        }
+
+        Err("unterminated plural placeholder")
     }
+}
 
-    Ok((name.into(), Ruleset { rules: rules.into() }))
+impl TryFrom<&str> for Selector {
+    type Error = &'static str;
+
+    fn try_from(body: &str) -> Result<Selector, &'static str> {
+        /// Parses a range bound. 255 is rejected because it marks an open upper bound.
+        fn bound(s: &str) -> Option<u8> {
+            s.parse::<u8>().ok().filter(|&n| n != u8::MAX)
+        }
+
+        if body.is_empty() {
+            return Ok(Selector::FALLBACK);
+        }
+        if body == "." {
+            return Ok(Selector::FLOAT);
+        }
+
+        let bytes = body.as_bytes();
+        let op = Op::try_from(bytes[0])?;
+
+        if op == Op::Float {
+            return Err("the `.` selector does not take a range");
+        }
+
+        let Ok(range) = std::str::from_utf8(&bytes[1..]) else {
+            return Err("invalid UTF-8 in rule selector range body");
+        };
+
+        if let Some(lo) = range.strip_suffix('+') {
+            let lo = bound(lo).ok_or("invalid rule selector open range bound")?;
+            return Ok(Selector { op, lo, hi: u8::MAX });
+        }
+
+        if let Some((lo, hi)) = range.split_once('-') {
+            let lo = bound(lo).ok_or("invalid rule selector range lower bound")?;
+            let hi = bound(hi).ok_or("invalid rule selector range upper bound")?;
+
+            if lo > hi {
+                return Err("selector range lower bound is greater than its upper bound");
+            }
+
+            return Ok(Selector { op, lo, hi });
+        }
+
+        let n = bound(range).ok_or("invalid rule selector range")?;
+
+        Ok(Selector { op, lo: n, hi: n })
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn render(body: &str, arg: Arg) -> String {
-        let (_, ruleset) = compile(body).unwrap();
-        let mut output = String::new();
-        ruleset.render(&mut output, &arg);
-        output
-    }
-
-    #[test]
-    fn selectors_parse_to_op_and_bounds() {
-        assert_eq!(parse_selector("").unwrap(), (Op::Fallback, !0, !0));
-        assert_eq!(parse_selector(".").unwrap(), (Op::Float, !0, !0));
-        assert_eq!(parse_selector("=1").unwrap(), (Op::Equals, 1, 1));
-        assert_eq!(parse_selector("=0-1").unwrap(), (Op::Equals, 0, 1));
-        assert_eq!(parse_selector("=9+").unwrap(), (Op::Equals, 9, !0));
-        assert_eq!(parse_selector("~2+").unwrap(), (Op::FloatRange, 2, !0));
-        assert_eq!(parse_selector("%2-4").unwrap(), (Op::Mod10, 2, 4));
-        assert_eq!(parse_selector("#11-19").unwrap(), (Op::Mod100, 11, 19));
-        assert_eq!(parse_selector("=254").unwrap(), (Op::Equals, 254, 254));
-    }
-
-    #[test]
-    fn invalid_selectors_are_rejected() {
-        for selector in [
-            "?", "?1", "x", " ", "=", "=a", "=-", "=1-", "=-1", "=+", "=1+2", "=256", "=1000", "=1-256", "=1.5", "=-1-2",
-        ] {
-            assert!(parse_selector(selector).is_err(), "{selector:?} should be rejected");
-        }
-
-        assert!(parse_selector(".5").is_err());
-        assert!(parse_selector(".1-2").is_err());
-    }
-
-    #[test]
-    fn reversed_ranges_are_rejected() {
-        assert!(compile("n|=5-1: x").is_err());
-        assert!(compile("n|=1-1: x").is_ok());
-        assert!(compile("n|=5+: x").is_ok());
-    }
-
-    #[test]
-    fn placeholder_names_are_validated() {
-        assert!(compile("").is_err());
-        assert!(compile(" n|=1: x").is_err());
-        assert!(compile("a-b|=1: x").is_err());
-        assert!(compile("é|=1: x").is_err());
-        assert_eq!(&*compile("n_1|=1: x").unwrap().0, "n_1");
-    }
-
-    #[test]
-    fn rule_text_is_split_at_the_first_colon_only() {
-        assert_eq!(render("n|=1: a: b", Arg::Int(1)), "1 a: b");
-        assert_eq!(render("n|: a: b", Arg::Int(1)), "1 a: b");
-        assert_eq!(render("n|=1:=a:b", Arg::Int(1)), "a:b");
-    }
-
-    #[test]
-    fn rules_are_evaluated_left_to_right() {
-        assert_eq!(render("n|=1: a|=1: b| c", Arg::Int(1)), "1 a");
-        assert_eq!(
-            render("n| c|=1: a", Arg::Int(1)),
-            "1 c",
-            "an early fallback shadows later rules"
-        );
-    }
-
-    #[test]
-    fn no_rules_and_empty_text() {
-        assert_eq!(render("n", Arg::Int(5)), "5");
-        assert_eq!(render("n|", Arg::Int(5)), "5");
-        assert_eq!(render("n|=5:", Arg::Int(5)), "5");
-        assert_eq!(render("n|=5:=", Arg::Int(5)), "");
-    }
-
-    #[test]
-    fn integer_matching() {
-        assert_eq!(render("n|=0-1: a| b", Arg::Uint(1)), "1 a");
-        assert_eq!(render("n|=0-1: a| b", Arg::Uint(2)), "2 b");
-        assert_eq!(render("n|=2+: a| b", Arg::Uint(u64::MAX)), "18446744073709551615 a");
-        assert_eq!(render("n|=1: a| b", Arg::Int(-1)), "-1 a");
-        assert_eq!(render("n|=1: a| b", Arg::Int(i64::MIN)), "-9223372036854775808 b");
-        assert_eq!(render("n|%0: a| b", Arg::Uint(1000)), "1000 a");
-        assert_eq!(render("n|#0: a| b", Arg::Uint(1000)), "1000 a");
-        assert_eq!(render("n|%5+: a| b", Arg::Uint(17)), "17 a");
-    }
-
-    #[test]
-    fn floats_only_match_float_aware_selectors() {
-        for value in [1.0_f64, 1.5, 21.0] {
-            for arg in [|v: f64| Arg::Float64(v), |v: f64| Arg::Float32(v as f32)] {
-                let arg = arg(value);
-                assert!(arg.is_float());
-                let ends_with = |body: &str, suffix: &str| render(body, arg_clone(&arg)).ends_with(suffix);
-                assert!(ends_with("n|=1: a| b", " b"), "`=` must not match {value}");
-                assert!(ends_with("n|%1: a| b", " b"), "`%` must not match {value}");
-                assert!(ends_with("n|#1: a| b", " b"), "`#` must not match {value}");
-                assert!(ends_with("n|.: a| b", " a"), "`.` must match {value}");
-                assert!(ends_with("n|~0-99: a| b", " a"), "`~` must match {value}");
-            }
-        }
-        assert!(!Arg::Int(1).is_float() && !Arg::Uint(1).is_float() && !Arg::String("1").is_float());
-    }
-
-    /// `Arg` is not `Clone`; rebuild it from its numeric value.
-    fn arg_clone<'a>(arg: &Arg<'a>) -> Arg<'a> {
-        match arg {
-            Arg::Float64(v) => Arg::Float64(*v),
-            Arg::Float32(v) => Arg::Float32(*v),
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn strings_bypass_rules() {
-        assert_eq!(render("n|=1: a| b", Arg::String("one")), "one");
-        assert_eq!(render("n|: a", Arg::String("one")), "one");
-        assert_eq!(render("n|=1:=x", Arg::String("")), "");
-    }
-}
+#[path = "../unit_tests/plural_tests.rs"]
+mod tests;
