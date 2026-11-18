@@ -163,6 +163,7 @@ Usage:
 ```text
 t!(<locale>, <key>[, arguments...])
 ```
+
 ```text
 wt!(<output>, <locale>, <key>[, arguments...])
 ```
@@ -173,6 +174,7 @@ and `wt!` writes into a `&mut String`.
 ### Output
 
 Output parameter for `wt!` must be a mutable reference to `String`.
+
 ```rust ignore
 let mut buf = String::with_capacity(256);
 wt!(&mut buf, "de", foo.text);
@@ -245,34 +247,8 @@ Plural placeholder:
 items: "You have {items|=1: item| items}."
 ```
 
-Escaping:
-
-```yaml
-escape: '\{not a placeholder}'
-double: 'but \\{this} is still a placeholder'
-```
-
 Placeholder names must not be empty and may contain only ASCII letters, digits and `_`.
 You can have multiple placeholders in a template, and names can repeat.
-
-### Escaping
-
-A backslash escapes `{` only when it is directly in front of it:
-
-- `\{` renders as a literal `{` (the backslash is removed) and does not
-  start a placeholder.
-- Backslashes anywhere else are plain text and are kept as they are.
-- If `{` is preceded by an **even** number of backslashes, it starts a
-  placeholder and **all** of those backslashes are kept in the output,
-  so `\\{name}` renders as `\\Anna`. There is currently no way to render a
-  single backslash directly in front of a placeholder.
-
-In YAML, `\{` is an invalid escape sequence in double-quoted strings.
-Use single quotes (`'\{x}'`), or double the backslash (`"\\{x}"`).
-
-Placeholders cannot be nested, and the first `}` always closes a placeholder,
-so plural rule text must not contain `}`. A stray `}` outside a placeholder is
-plain text.
 
 ### Supported types
 
@@ -321,7 +297,7 @@ If rule text starts with `=`, the rendered number is replaced
 instead of prepended. If a plural placeholder receives a non-numeric
 value it renders only the value itself and returns without rule matching.
 
-Range bounds are written as unsigned decimal integers up to `254`. 
+Range bounds are written as unsigned decimal integers up to `254`.
 Values above that are rejected at initialization.
 Because the bounds are small, use `#` or `%` to match numbers by their last digits.
 
@@ -374,16 +350,51 @@ ar: "{i|.: other|#11-99: many|=0: zero|%1: one|%2: two|#3-10: few|#0: other}"
 ```
 
 A rule that has a leading `=` in the text will replace the number:
+
 ```yaml
 count: "{n|=0:=no items|=1:=one item| items}"
+```
+
+### Escaping and quoting
+
+Curly braces open and close placeholders, and characters such as `|` and `:`
+mark up the ruleset sequence in plural placeholders, so if you need to use these
+as literals, you must follow the escaping and quoting rules.
+
+In regular text, `{{` folds into a literal `{`.
+Braces are read from left to right, so a sequence of `n` braces gives `n / 2`
+literal braces, and if `n` is odd, the last one opens a placeholder.
+
+```yaml
+# name = "Jake"
+
+escape: "{{name}" # {name}
+prefix: "{{{name}" # {Jake
+suffix: "{name}}" # Jake}
+surround: "{{{name}}" # {Jake}
+```
+
+In plural placeholders, the rule markup characters that are wanted to be displayed
+as literals in rule text must be quoted in backticks.
+Two consecutive backticks fold into a single one.
+
+```yaml
+# n = 1: "1 {one}",  n = 2: "2 {many}"
+braces: "{n|=1: `{one}`|: `{many}`}"
+
+# n = 1: "1 a | b", n = 2: "2 c"
+pipe: "{n|=1: `a | b`| c}"
+
+# n = 1: "`one`", n = 2: "`more`"
+backtick: "{n|=1:=``one``|=``more``}"
 ```
 
 ## Hot reloading
 
 `reinit` loads a new set of translations and atomically swaps it in.
-This function is **unsafe**: it uses a timer to free the old storage, becuase 
-this is the simplest way to keep the hot path as fast as possible while 
-providing hot reloading with access overhead of `OnceLock`. 
+This function is **unsafe**: it uses a timer to free the old storage, becuase
+this is the simplest way to keep the hot path as fast as possible while
+providing hot reloading with access overhead of `OnceLock`.
 Alternative methods like ArcSwap make the rendering significantly slower.
 
 ```rust no_run
@@ -391,9 +402,10 @@ unsafe { ezlz::reinit("en", "locales").unwrap(); }
 ```
 
 ### Safety
+
 The old storage is dropped by a background thread after the grace period
-(60 seconds by default). You must guarantee that, by then, no thread is still 
-inside a [`t!`] or [`wt!`] call that started before this swap. Argument 
+(60 seconds by default). You must guarantee that, by then, no thread is still
+inside a [`t!`] or [`wt!`] call that started before this swap. Argument
 expressions are evaluated before the lookup begins and do not count.
 
 Such a call normally finishes in well under a millisecond, but a thread can
@@ -405,11 +417,13 @@ Use a grace period far longer than any stall you consider possible, or use safe
 `reinit_leak`, which never frees the old storage and has no such requirement.
 
 ### Grace period
-The grace period is in seconds and must be non-zero, because dropping the old 
-translations immediately will cause undefined behavior if any renderer 
+
+The grace period is in seconds and must be non-zero, because dropping the old
+translations immediately will cause undefined behavior if any renderer
 was running at that moment.
 
 It can be changed with `set_grace_period`:
+
 ```rust no_run
 use std::num::NonZero;
 
@@ -417,7 +431,6 @@ use std::num::NonZero;
 let delay = NonZero::new(1200).unwrap();
 ezlz::set_grace_period(delay);
 ```
-
 
 ## How it works
 
@@ -469,19 +482,19 @@ Benchmarks were run in the following conditions:
 
 Results:
 
-| Benchmark           | Description            | `t!`    | `wt!`   |
-| ------------------- | ---------------------- | ------: | ------: |
-| `text`              | No placeholders        |   46 ns |   32 ns |
-| `simple`            | Single integer         |   51 ns |   40 ns |
-| `simple<-string`    | Single string          |   51 ns |   40 ns |
-| `simple<-float`     | Single float           |   70 ns |   59 ns |
-| `simple (x10)`      | 10 integers            |  114 ns |  101 ns |
-| `plural_en`         | English integer plural |   59 ns |   53 ns |
-| `plural_en<-float`  | English float plural   |   79 ns |   70 ns |
-| `plural_en (x10)`   | 10 plural integers     |  186 ns |  173 ns |
-| `plural_fr<-float`  | French float plural    |   79 ns |   69 ns |
-| `plural_ru`         | Russian integer plural |   64 ns |   56 ns |
-| `plural_ru<-float`  | Russian float plural   |   79 ns |   67 ns |
+| Benchmark          | Description            |   `t!` |  `wt!` |
+| ------------------ | ---------------------- | -----: | -----: |
+| `text`             | No placeholders        |  46 ns |  32 ns |
+| `simple`           | Single integer         |  51 ns |  40 ns |
+| `simple<-string`   | Single string          |  51 ns |  40 ns |
+| `simple<-float`    | Single float           |  70 ns |  59 ns |
+| `simple (x10)`     | 10 integers            | 114 ns | 101 ns |
+| `plural_en`        | English integer plural |  59 ns |  53 ns |
+| `plural_en<-float` | English float plural   |  79 ns |  70 ns |
+| `plural_en (x10)`  | 10 plural integers     | 186 ns | 173 ns |
+| `plural_fr<-float` | French float plural    |  79 ns |  69 ns |
+| `plural_ru`        | Russian integer plural |  64 ns |  56 ns |
+| `plural_ru<-float` | Russian float plural   |  79 ns |  67 ns |
 
 Every `t!` call allocates and returns one `String`, so the allocator matters.
 Calling `wt!` writes to an already existing buffer, skipping the initial allocation.
@@ -503,9 +516,10 @@ Rust 1.85 (the first release with edition 2024).
 ## Development
 
 ```bash
-cargo test --workspace                              # default features
+cargo test --workspace
 cargo test --workspace --all-features
 cargo clippy --workspace --all-targets --all-features
+cargo fmt --all --check
 ```
 
 Because the translation store is global and `init` succeeds once per process,
@@ -516,12 +530,13 @@ the integration tests are split into separate files (each is its own process):
 Internals are covered by unit tests in `src/lib.rs` and `src/plural.rs`.
 
 ## Cargo features
+
 > Cargo features are additive: if any crate in a dependency tree enables one, it is enabled for all of them.
 
-| Feature                  | Description                                                                |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `stringify-missing-keys` | A missing translation key is stringified instead of panicking.             |
-| `fast-floats`            | Renders floats without checking for NaN and infinity (see below).          |
+| Feature                  | Description                                                       |
+| ------------------------ | ----------------------------------------------------------------- |
+| `stringify-missing-keys` | A missing translation key is stringified instead of panicking.    |
+| `fast-floats`            | Renders floats without checking for NaN and infinity (see below). |
 
 ### `fast-floats`
 
@@ -529,7 +544,7 @@ By default, floats are formatted with `zmij::Buffer::format`, which prints `NaN`
 `inf` and `-inf` for non-finite values. With `fast-floats`, `Buffer::format_finite`
 is used instead, which skips that check and is slightly faster. The catch is that
 for NaN and infinities it prints an **unspecified number** (for example NaN renders as
-`2.696539702293474e+308`), so enable it only if your floats are always finite. 
+`2.696539702293474e+308`), so enable it only if your floats are always finite.
 
 ## License
 

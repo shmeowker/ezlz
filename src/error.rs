@@ -5,6 +5,7 @@ use std::path::PathBuf;
 /// Errors that may occur during initialization.
 #[non_exhaustive]
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub enum Error {
     /// File system errors.
     ///

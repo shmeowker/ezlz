@@ -7,10 +7,17 @@ test:
   fr: "{i|~0-1: article| articles}"
   cn: "{i| 件}"
   replace: "{i|=0:=zero|=1:=one|=2:=two|=3:=three|=4:=four|=5:=five}"
-  escape: "\\{x}"
-  escape2: "\\\\{x}"
-  escape3: "\\\\\\{x}"
-  escape4: '\{x} bar \\{x} qux \\\{x}'
+  escape: "{{x}"
+  escape2: '\{x}'
+  escape3: '\{{x}'
+  escape4: '{{x} bar \{x} qux \{{x}'
+  escape_plain: a {{x} b {x}
+  escape_block: |-
+    {{x}
+    \{x}
+  quote: "{i|=1: `{one}`|: `{many}`}"
+  quote_pipe: "{i|=1: `a | b`| c}"
+  quote_tail: "{i|=1: x}}"
 
 bench:
   literal: "Lorem ipsum dolor sit amet..."

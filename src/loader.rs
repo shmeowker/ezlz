@@ -109,7 +109,7 @@ fn compile_translation(
             },
 
         Value::String(value) => {
-            let template = match Template::compile(value) {
+            let template = match Template::try_from(&**value) {
                 Ok(template) => template,
                 Err(msg) => {
                     return Err(Error::InvalidTemplate {

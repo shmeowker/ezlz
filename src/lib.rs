@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![allow(rustdoc::private_intra_doc_links)]
+#![warn(missing_docs)]
 
+use std::mem::take;
 use std::num::NonZero;
 use std::path::Path;
 use std::ptr::null_mut;
@@ -16,6 +18,7 @@ mod plural;
 pub use error::Error;
 pub use ezlz_macros::{t, wt};
 use loader::load;
+use plural::Ruleset;
 
 /// Global localization store.
 static STORAGE: AtomicPtr<Translations> = AtomicPtr::new(null_mut());
@@ -40,7 +43,7 @@ pub fn set_grace_period(seconds: NonZero<u64>) {
 /// // and use "en" as fallback locale.
 /// ezlz::init("en", "locales").unwrap();
 ///
-/// fn get_lang() -> String {
+/// fn lang() -> String {
 ///     "ru".to_string()
 /// }
 ///
@@ -49,7 +52,7 @@ pub fn set_grace_period(seconds: NonZero<u64>) {
 /// // If the variable name matches placeholder name,
 /// // using explicit placeholder names is unnecessary:
 /// let name = "Anna";
-/// t!(get_lang(), messages.greet, name);
+/// t!(lang(), messages.greet, name);
 /// ```
 pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
     if !STORAGE.load(Ordering::Acquire).is_null() {
@@ -128,53 +131,6 @@ enum Part {
     Plural { name: Box<str>, rules: plural::Ruleset },
 }
 
-impl Part {
-    /// Parse a placeholder from a string slice containing its body.
-    fn parse_placeholder(source: &str) -> Result<Self, &'static str> {
-        if is_identifier(source) {
-            return Ok(Self::Variable { name: source.into() });
-        }
-
-        let (name, rules) = plural::compile(source)?;
-
-        Ok(Self::Plural { name, rules })
-    }
-
-    /// Parse the first valid [`Part`] from a string slice and
-    /// return it along with the rest of that string slice.
-    fn parse_next(source: &str) -> Result<(Self, &str), &'static str> {
-        /// Checks if the byte at index `i` has an odd number of `\` bytes before it.
-        fn is_escaped(bytes: &[u8], i: usize) -> bool {
-            let backslashes = bytes[..i].iter().rev().take_while(|&&b| b == b'\\').count();
-            backslashes % 2 == 1
-        }
-
-        /// Turns the escaped `\{` sequences of a text part into plain `{`.
-        fn unescape(text: &str) -> Box<str> {
-            text.replace(r"\{", "{").into_boxed_str()
-        }
-
-        let bytes = source.as_bytes();
-
-        // Index of the first `{` that is not escaped. It is ASCII, so
-        // slicing the string at it is always on a character boundary.
-        let open = source.match_indices('{').map(|(i, _)| i).find(|&i| !is_escaped(bytes, i));
-
-        match open {
-            // The source starts with a placeholder.
-            Some(0) => {
-                let end = source[1..].find('}').map(|end| 1 + end).ok_or("unclosed placeholder")?;
-                let part = Self::parse_placeholder(&source[1..end])?;
-                Ok((part, &source[end + 1..]))
-            },
-            // Text up to the next placeholder.
-            Some(i) => Ok((Self::Text(unescape(&source[..i])), &source[i..])),
-            // Only text is left.
-            None => Ok((Self::Text(unescape(source)), "")),
-        }
-    }
-}
-
 /// A compiled representation of a translation value.
 #[derive(Debug)]
 struct Template {
@@ -182,45 +138,105 @@ struct Template {
     parts: Box<[Part]>,
     /// Estimated size of a rendered template.
     ///
-    /// Calculated in [`Template::compile`].
+    /// It is calculated during parsing.
     /// Used as the size of the string buffer in [`Template::render`].
     bufsize: usize,
 }
 
-impl Template {
-    /// Estimated size of a placeholder's rendered value.
-    const ESTIMATED_ARG_LEN: usize = 32;
+impl TryFrom<&str> for Template {
+    type Error = &'static str;
 
-    /// Parse a translation string and compile its segments
-    /// into a list of [`Part`]s.
-    ///
-    /// Calculates the approximate size of the rendered template by
-    /// adding the total size of text parts to the number of placeholders
-    /// multiplied by [`Template::ESTIMATED_ARG_LEN`].
-    fn compile(translation: &str) -> Result<Self, &'static str> {
-        let mut parts = Vec::new();
-        let mut source = translation;
+    fn try_from(src: &str) -> Result<Self, Self::Error> {
+        #[derive(PartialEq, Eq)]
+        enum State {
+            Text,
+            Ident,
+        }
+
+        let mut out = Vec::new();
+        let mut state = State::Text;
+        let mut iter = src.chars().peekable();
+        let mut buf = String::new();
         let mut bufsize = 0;
 
-        while !source.is_empty() {
-            let (part, rest) = Part::parse_next(source)?;
+        while let Some(c) = iter.next() {
+            match state {
+                State::Text => match c {
+                    '{' => {
+                        if iter.peek() == Some(&'{') {
+                            buf.push('{');
+                            bufsize += 1;
+                            iter.next();
+                            continue;
+                        }
 
-            match &part {
-                Part::Text(text) => bufsize += text.len(),
-                Part::Variable { .. } | Part::Plural { .. } => {
-                    bufsize += Self::ESTIMATED_ARG_LEN;
+                        if !buf.is_empty() {
+                            let text = take(&mut buf).into_boxed_str();
+                            let part = Part::Text(text);
+                            out.push(part);
+                        }
+
+                        state = State::Ident;
+                    },
+
+                    _ => {
+                        bufsize += c.len_utf8();
+                        buf.push(c);
+                    },
+                },
+
+                State::Ident => match c {
+                    '}' => {
+                        if !is_identifier(&buf) {
+                            return Err("invalid placeholder identifier");
+                        }
+
+                        let name = take(&mut buf).into_boxed_str();
+                        let part = Part::Variable { name };
+                        bufsize += Self::ESTIMATED_VAR_LEN;
+                        out.push(part);
+                        state = State::Text;
+                    },
+
+                    '|' => {
+                        if !is_identifier(&buf) {
+                            return Err("invalid plural placeholder identifier");
+                        }
+
+                        let rules = Ruleset::try_from(&mut iter)?;
+                        let name = take(&mut buf).into_boxed_str();
+                        let part = Part::Plural { name, rules };
+
+                        bufsize += Self::ESTIMATED_VAR_LEN;
+                        out.push(part);
+                        state = State::Text;
+                    },
+
+                    _ => buf.push(c),
                 },
             }
+        }
 
-            parts.push(part);
-            source = rest;
+        if state != State::Text {
+            return Err("unterminated placeholder");
+        }
+
+        if !buf.is_empty() {
+            let text = take(&mut buf).into_boxed_str();
+            let part = Part::Text(text);
+            out.push(part);
         }
 
         Ok(Self {
-            parts: parts.into_boxed_slice(),
+            parts: out.into_boxed_slice(),
             bufsize,
         })
     }
+}
+
+impl Template {
+    /// Estimated size of a placeholder's rendered value.
+    const ESTIMATED_VAR_LEN: usize = 32;
 
     /// Renders a template into a new [`String`] and returns it.
     fn render(&self, args: &[(&str, Arg<'_>)]) -> String {
