@@ -12,11 +12,11 @@ use std::time::Duration;
 use ahash::{HashMap, HashMapExt};
 
 mod error;
-mod loader;
+pub mod loader;
 mod plural;
 pub use error::Error;
 pub use ezlz_macros::{t, wt};
-use loader::load;
+pub use loader::*;
 use plural::Ruleset;
 
 /// Global localization store.
@@ -54,19 +54,8 @@ pub fn set_grace_period(seconds: NonZero<u64>) {
 /// t!(lang(), messages.greet, name);
 /// ```
 pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
-    if !STORAGE.load(Ordering::Acquire).is_null() {
-        return Err(Error::AlreadyInitialized);
-    }
-
-    let ptr = load(fallback, directory)?;
-
-    match STORAGE.compare_exchange(null_mut(), ptr, Ordering::Release, Ordering::Relaxed) {
-        Ok(_) => Ok(()),
-        Err(_) => {
-            unsafe { drop(Box::from_raw(ptr)) };
-            Err(Error::AlreadyInitialized)
-        },
-    }
+    let loader = yaml::Yaml::new(fallback, directory)?;
+    init_with(loader)
 }
 
 /// Initializes a new storage and atomically swaps the old one with it.
@@ -88,7 +77,69 @@ pub fn init(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Resul
 /// Use a grace period far longer than any stall you consider possible, or use
 /// [`reinit_leak`], which never frees the old storage and has no such requirement.
 pub unsafe fn reinit(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
-    let new = load(fallback, directory)?;
+    let loader = yaml::Yaml::new(fallback, directory)?;
+    unsafe { reinit_with(loader) }
+}
+
+/// Initializes a new storage and atomically swaps the old one with it, leaking the latter.
+///
+/// This is useful if the translations are rarely updated and you want to avoid unsafe code.
+///
+/// May return an [`Error`]. Can be used instead of [`init`].
+pub fn reinit_leak(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
+    let loader = yaml::Yaml::new(fallback, directory)?;
+    reinit_leak_with(loader)
+}
+
+/// Initializes the storage using a loader.
+///
+/// ```rust no_run
+/// use ezlz::loader::yaml::Yaml;
+/// use ezlz::{t, Error};
+///
+/// fn main() -> Result<(), Error> {
+///     let loader = Yaml::new("en", "locales")?;
+///     ezlz::init_with(loader)?;
+///     println!("{}", t!("en", messages.hello));
+///
+///     Ok(())
+/// }
+pub fn init_with<L: Loader>(loader: L) -> Result<(), Error> {
+    if !STORAGE.load(Ordering::Acquire).is_null() {
+        return Err(Error::AlreadyInitialized);
+    }
+
+    let ptr = load_with(loader)?;
+
+    match STORAGE.compare_exchange(null_mut(), ptr, Ordering::Release, Ordering::Relaxed) {
+        Ok(_) => Ok(()),
+        Err(_) => {
+            unsafe { drop(Box::from_raw(ptr)) };
+            Err(Error::AlreadyInitialized)
+        },
+    }
+}
+
+/// Initializes a new storage using a loader and atomically swaps the old one with it.
+///
+/// May return an [`Error`]. Can be used instead of [`init`].
+///
+/// # Safety
+/// The old storage is dropped by a background thread after the grace period
+/// (60 seconds by default, see [`set_grace_period`]). You must guarantee that,
+/// by then, no thread is still inside a [`t!`] or [`wt!`] call that started
+/// before this swap. Argument expressions are evaluated before the lookup
+/// begins and do not count.
+///
+/// Such a call normally finishes in well under a millisecond, but a thread can
+/// be stalled in the middle of it: preempted, starved under heavy load, blocked
+/// on a page fault or paused by a debugger. If it resumes after the old storage
+/// was dropped, it reads freed memory, which is undefined behavior.
+///
+/// Use a grace period far longer than any stall you consider possible, or use
+/// [`reinit_leak`], which never frees the old storage and has no such requirement.
+pub unsafe fn reinit_with<L: Loader>(loader: L) -> Result<(), Error> {
+    let new = load_with(loader)?;
     let old = STORAGE.swap(new, Ordering::AcqRel);
 
     if !old.is_null() {
@@ -104,13 +155,14 @@ pub unsafe fn reinit(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>)
     Ok(())
 }
 
-/// Initializes a new storage and atomically swaps the old one with it, leaking the latter.
+/// Initializes a new storage using a loader and atomically swaps the old one with it, leaking the latter.
 ///
 /// This is useful if the translations are rarely updated and you want to avoid unsafe code.
 ///
 /// May return an [`Error`]. Can be used instead of [`init`].
-pub fn reinit_leak(fallback: impl Into<Box<str>>, directory: impl AsRef<Path>) -> Result<(), Error> {
-    let ptr = load(fallback, directory)?;
+pub fn reinit_leak_with<L: Loader>(loader: L) -> Result<(), Error> {
+    let ptr = load_with(loader)?;
+
     STORAGE.store(ptr, Ordering::Release);
 
     Ok(())

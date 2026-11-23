@@ -7,10 +7,10 @@ resolver = "2"
 
 [package]
 name = "ezlz"
-version = "3.0.1"
+version = "3.1.0"
 edition = "2024"
 rust-version = "1.85.0"
-description = "A compact i18n crate."
+description = "Easy localization for hot loops."
 license = "MIT"
 repository = "https://github.com/shmeowker/ezlz"
 readme = "README.md"

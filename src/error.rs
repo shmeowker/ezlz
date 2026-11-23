@@ -30,7 +30,7 @@ pub enum Error {
     InvalidTemplate { path: PathBuf, key: String, message: String },
     /// Occurs if `init` is called after a successful initialization.
     AlreadyInitialized,
-    /// Occurs if the fallback locale can't be found in the provided directory.
+    /// Occurs if the fallback locale can't be found in the provided location.
     FallbackLocaleNotFound { name: String, path: PathBuf },
     /// Occurs when multiple identical keys are encountered in one file.
     DuplicateKey { path: PathBuf, key: String },
